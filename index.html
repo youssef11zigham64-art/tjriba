@@ -503,8 +503,7 @@
     </style>
 </head>
 <body>
-
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <div id="imageModal" class="image-modal" onclick="closeImageModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
@@ -972,9 +971,11 @@
 
 <script>
 
+const supabaseUrl = 'https://uazbvvwxqnuuvwikteiz.supabase.co';
+const supabaseKey = 'sb_publishable_DgTxnm0kn0U3zUzvSmSUVg_Ip3LC-fE';
+const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-																								
-	// =============== دوال التخزين المحلي ===============
+console.log("✅ متجر وديع مربوط بالسحابة أونلاين!");
 function loadData() {
     const savedProducts = localStorage.getItem('wadii_products');
     const savedSales = localStorage.getItem('wadii_sales');
@@ -1936,30 +1937,72 @@ function removeFromInvoice(index) {
     displayInvoiceItems();
 }
 
-function saveInvoice() {
+async function saveInvoice() {
     if (currentInvoice.length === 0) { alert('❌ لا توجد منتجات في الفاتورة'); return; }
+    
     let invoiceNumber = document.getElementById('invoiceNumberInput').value.trim();
-    if (!invoiceNumber) { invoiceNumber = `INV-${Math.floor(1000 + Math.random() * 9000)}-${new Date().getFullYear()}`; }
+    if (!invoiceNumber) { 
+        invoiceNumber = `INV-${Math.floor(1000 + Math.random() * 9000)}-${new Date().getFullYear()}`; 
+    }
+    
     const total = currentInvoice.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const profit = currentInvoice.reduce((sum, item) => sum + ((item.price - item.cost) * item.quantity), 0);
-    const sale = { id: Date.now(), invoiceNumber: invoiceNumber, date: new Date().toLocaleDateString('ar-MA'), employeeName: currentUser.name, employeeId: currentUser.id, items: [...currentInvoice], total: total, profit: profit };
+    
+    // إعداد بيانات الفاتورة
+    const sale = { 
+        id: Date.now(), 
+        invoiceNumber: invoiceNumber, 
+        date: new Date().toLocaleDateString('ar-MA'), 
+        employeeName: currentUser.name, 
+        employeeId: currentUser.id, 
+        items: JSON.stringify(currentInvoice), // نحولها لنص لتناسب قاعدة البيانات
+        total: total, 
+        profit: profit 
+    };
+
+    // --- الجزء الجديد: إرسال المبيعة إلى Supabase أونلاين ---
+    try {
+        const { data, error } = await _supabase
+            .from('sales')
+            .insert([{
+                invoiceNumber: sale.invoiceNumber,
+                total: sale.total,
+                date: sale.date,
+                items: sale.items,
+                profit: sale.profit,
+                employeeName: sale.employeeName
+            }]);
+
+        if (error) throw error;
+        console.log("✅ تمت المزامنة مع السحاب بنجاح!");
+    } catch (err) {
+        console.error("❌ خطأ في المزامنة أونلاين:", err.message);
+        // ملاحظة: الفاتورة ستبقى في المتصفح حتى لو فشل الإنترنت
+    }
+    // --------------------------------------------------
+
+    // تنقيص الكمية من المخزن (القديم)
     currentInvoice.forEach(invItem => {
         const product = products.find(p => p.id === invItem.id);
         if (product) { product.quantity -= invItem.quantity; }
     });
-    sales.unshift(sale);
+
+    // حفظ البيانات محلياً وتحديث الواجهة
+    sales.unshift({ ...sale, items: [...currentInvoice] }); // نعيدها كـ Array للحفظ المحلي
     saveData();
+    
     currentInvoice = [];
     displayInvoiceItems();
     updateProductSelect();
     displayProducts();
     updateInvoiceStats();
     displaySales();
+    
     if (currentUser.role === 'owner') updateDashboard();
+    
     document.getElementById('invoiceNumberInput').value = '';
-    alert(`✅ تم حفظ الفاتورة بنجاح\n📄 رقم الفاتورة: ${invoiceNumber}\n👤 الموظف: ${currentUser.name}\n💰 المجموع: ${total.toFixed(2)} د.م`);
+    alert(`✅ تم حفظ الفاتورة بنجاح ونقلها للسحاب\n📄 رقم الفاتورة: ${invoiceNumber}\n👤 الموظف: ${currentUser.name}\n💰 المجموع: ${total.toFixed(2)} د.م`);
 }
-
 function displaySales() {
     const tbody = document.getElementById('salesBody');
     if (!tbody) return;
@@ -2959,7 +3002,25 @@ function showMonthlyEmployeeProfits() {
     console.log("✅ تم حساب الأرباح بنجاح (بدون تخمين 20%)");
     console.log("📊 البيانات:", employeeData);
 }
-
+// 1. تعريف قناة المستمع (Listener Channel)
+const salesListener = _supabase
+  .channel('realtime-sales') // اسم القناة (ممكن يكون أي اسم)
+  .on(
+    'postgres_changes', 
+    { 
+      event: 'INSERT',    // كيتسنى غير الإضافات الجديدة
+      schema: 'public', 
+      table: 'sales'      // كايراقب جدول المبيعات اللي خدامين عليه
+    }, 
+    (payload) => {
+      console.log('✅ وصلات فاتورة جديدة من السيرفر!', payload.new);
+      
+      // هنا غادي نعيطو على الدالة اللي غاتعرض البيانات (غادي نصاوبوها فالمرحلة الجاية)
+      // حالياً غادي نديرو غير تنبيه باش نعرفو واش خدام
+      alert("فاتورة جديدة تسجلت دابا من طرف: " + payload.new.employeeName);
+    }
+  )
+  .subscribe();
 </script>
 </body>
 </html>
