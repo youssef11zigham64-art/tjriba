@@ -3002,20 +3002,20 @@ function showMonthlyEmployeeProfits() {
     console.log("✅ تم حساب الأرباح بنجاح (بدون تخمين 20%)");
     console.log("📊 البيانات:", employeeData);
 }
-// هذا الكود هو المسؤول عن سحب الفواتير من السيرفر وعرضها عندك أوتوماتيكياً
+// هاد الكود كيتسنى السيرفر يصيفط إشارة بلي كاين "فاتورة جديدة"
 const salesListener = _supabase
   .channel('realtime-sales')
   .on(
     'postgres_changes', 
     { 
-      event: 'INSERT', 
+      event: 'INSERT', // كايراقب غير الإضافات الجديدة
       schema: 'public', 
       table: 'sales' 
     }, 
     (payload) => {
-      console.log('🔔 وصلت فاتورة جديدة، جاري تحديث الجدول...');
+      console.log('✅ وصلت فاتورة من التيليفون! جاري تحديث الشاشة...');
       
-      // مناداة دالة جلب البيانات لعرض الفاتورة الجديدة فوراً
+      // هاد السطر هو اللي كيخلي البيانات تبان عندك في البرنامج أوتوماتيكياً
       if (typeof loadData === "function") {
           loadData(); 
       }
