@@ -3002,22 +3002,23 @@ function showMonthlyEmployeeProfits() {
     console.log("✅ تم حساب الأرباح بنجاح (بدون تخمين 20%)");
     console.log("📊 البيانات:", employeeData);
 }
-// 1. تعريف قناة المستمع (Listener Channel)
+// هذا الكود هو المسؤول عن سحب الفواتير من السيرفر وعرضها عندك أوتوماتيكياً
 const salesListener = _supabase
-  .channel('realtime-sales') // اسم القناة (ممكن يكون أي اسم)
+  .channel('realtime-sales')
   .on(
     'postgres_changes', 
     { 
-      event: 'INSERT',    // كيتسنى غير الإضافات الجديدة
+      event: 'INSERT', 
       schema: 'public', 
-      table: 'sales'      // كايراقب جدول المبيعات اللي خدامين عليه
+      table: 'sales' 
     }, 
     (payload) => {
-      console.log('✅ وصلات فاتورة جديدة من السيرفر!', payload.new);
+      console.log('🔔 وصلت فاتورة جديدة، جاري تحديث الجدول...');
       
-      // هنا غادي نعيطو على الدالة اللي غاتعرض البيانات (غادي نصاوبوها فالمرحلة الجاية)
-      // حالياً غادي نديرو غير تنبيه باش نعرفو واش خدام
-      alert("فاتورة جديدة تسجلت دابا من طرف: " + payload.new.employeeName);
+      // مناداة دالة جلب البيانات لعرض الفاتورة الجديدة فوراً
+      if (typeof loadData === "function") {
+          loadData(); 
+      }
     }
   )
   .subscribe();
