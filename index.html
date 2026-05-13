@@ -9,9 +9,7 @@
     <title>متجر وديع - نظام إدارة المبيعات</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
     /* كل الـ CSS الموجود كما هو - لم يتغير */
@@ -574,7 +572,10 @@
     <div class="nav-item" onclick="showSection('add-product')"><i class="fas fa-plus"></i> إضافة منتج</div>
     <div class="nav-item" onclick="showSection('new-invoice')"><i class="fas fa-file-invoice"></i> فاتورة بيع</div>
     <div class="nav-item" onclick="showSection('sales-history')"><i class="fas fa-history"></i> السجل</div>
-
+       <div class="sidebar-item" onclick="fetchAllSales()" style="cursor: pointer; padding: 10px; margin: 5px; border-radius: 8px; background: rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px;">
+    <span>🔄</span>
+    <span style="font-size: 14px;">تحديث السيرفر</span>
+</div>
     <!-- أزرار نظام الديون -->
 <div style="margin: 20px 15px; display: flex; flex-direction: column; gap: 10px;">
     <button id="btnAddDebt" style="background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;">
@@ -583,10 +584,8 @@
     <button id="btnShowDebts" style="background: #8b5cf6; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;">
         <i class="fas fa-users"></i> 📋 عرض الديون
     </button>
-</div>
-    <div class="sidebar-footer">
-        <div class="btn-group owner-only">
-            <button class="btn sync-btn" onclick="syncToFirebaseNow()"><i class="fas fa-cloud-upload-alt"></i> مزامنة يدوية</button>
+     
+
             <button class="btn" onclick="downloadBackup()"><i class="fas fa-download"></i> تصدير</button>
             <button class="btn" onclick="document.getElementById('fileInput').click()"><i class="fas fa-upload"></i> استيراد</button>
             <input type="file" id="fileInput" style="display:none" onchange="restoreBackup(event)">
@@ -801,6 +800,7 @@
                 <button class="filter-btn" onclick="filterSalesByPeriod('week')">📆 هذا الأسبوع</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('month')">🗓️ هذا الشهر</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('year')">📅 هذه السنة</button>
+            
             </div>            <button class="btn sync-btn" onclick="syncToFirebaseNow()"><i class="fas fa-cloud-upload-alt"></i> مزامنة يدوية</button>
             <div style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;">
              <div style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;"></div>
@@ -970,11 +970,13 @@
 </div>
 
 <script>
-
+// متغير لتتبع آخر وقت تم فيه جلب البيانات من السيرفر
+let lastSyncTime = new Date().toISOString();
+console.log('✅ تم تعريف lastSyncTime:', lastSyncTime);
 const supabaseUrl = 'https://uazbvvwxqnuuvwikteiz.supabase.co';
 const supabaseKey = 'sb_publishable_DgTxnm0kn0U3zUzvSmSUVg_Ip3LC-fE';
-const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
+// في السطر 978 تقريباً
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 console.log("✅ متجر وديع مربوط بالسحابة أونلاين!");
 function loadData() {
     const savedProducts = localStorage.getItem('wadii_products');
@@ -999,6 +1001,47 @@ function loadData() {
     }
 }
 
+// لمرة 3 ثواني لضمان تحميل كل شيء، تأخير تشغيل Realtime
+setTimeout(() => {
+    console.log('🔄 جاري تشغيل Realtime...');
+
+    // التأكد من أن العميل supabaseClient معرف وموجود (تم التعديل ليتوافق مع السطر 978)
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        
+        const salesChannel = supabaseClient
+            .channel('sales-channel')
+            .on('postgres_changes', 
+                { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: 'sales' 
+                }, 
+                (payload) => {
+                    console.log('🆕 فاتورة جديدة وصلت:', payload);
+                    
+                    // تحديث مصفوفة المبيعات إذا كانت معرفة
+                    if (typeof allSales !== 'undefined') {
+                        allSales.unshift(payload.new);
+                        
+                        // إعادة رندر الجدول إذا كانت الدالة موجودة
+                        if (typeof renderSalesTable === 'function') {
+                            renderSalesTable(allSales);
+                        }
+                    }
+                    
+                    // تنبيه وصول فاتورة جديدة
+                    alert('🔔 فاتورة جديدة من الهاتف!');
+                }
+            )
+            .subscribe((status) => {
+                console.log('📡 حالة Realtime:', status);
+            });
+
+    } else {
+        console.error('❌ خطأ: supabaseClient غير معرف. تأكد من السطر 978 في أعلى الملف.');
+    }
+
+}, 3000);
 function saveData() {
     localStorage.setItem('wadii_products', JSON.stringify(products));
     localStorage.setItem('wadii_sales', JSON.stringify(sales));
@@ -1334,41 +1377,6 @@ let productsUnsubscribe = null;
 let salesUnsubscribe = null;
 let saveTimeout = null;
 
-// =============== تحميل البيانات من Firebase أولاً + localStorage كنسخة احتياطية ===============
-async function loadData() {
-    console.log("🔄 بدء تحميل البيانات...");
-    
-    // أولاً: عرض بيانات localStorage فوراً (للسرعة)
-    const savedProducts = localStorage.getItem('wadii_products');
-    const savedSales = localStorage.getItem('wadii_sales');
-    
-    if (savedProducts) {
-        products = JSON.parse(savedProducts);
-        console.log(`⚡ عرض سريع: ${products.length} منتج من localStorage`);
-    } else {
-        // بيانات تجريبية افتراضية إذا لم توجد بيانات
-        products = [
-            { id: 1, name: "منتج تجريبي 1", supplier: "مورد 1", cost: 50, price: 80, quantity: 10, image: null },
-            { id: 2, name: "منتج تجريبي 2", supplier: "مورد 2", cost: 30, price: 60, quantity: 15, image: null }
-        ];
-        localStorage.setItem('wadii_products', JSON.stringify(products));
-    }
-    
-    if (savedSales) {
-        sales = JSON.parse(savedSales);
-        console.log(`⚡ عرض سريع: ${sales.length} فاتورة من localStorage`);
-    } else {
-        sales = [];
-    }
-    
-    // تحديث الواجهة فوراً بالبيانات المحلية
-    if (currentUser) {
-        updateUI();
-    }
-    
-    // ثم: جلب أحدث البيانات من Firebase
-   // await loadFromFirebaseAndSync();
-}
 
 
 
@@ -1458,7 +1466,46 @@ function startRealtimeFirebaseSync() {
 
 
 
-
+// =============== حفظ في Firebase في الخلفية ===============
+function saveToFirebaseInBackground() {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+        try {
+            const db = window.db;
+            const collectionFn = window.collection;
+            const setDocFn = window.setDoc;
+            const docFn = window.doc;
+            
+            if (!db) {
+                console.warn("⚠️ Firebase غير متاح");
+                return;
+            }
+            
+            console.log("☁️ جاري مزامنة البيانات مع Firebase...");
+            
+            // حفظ المنتجات
+            for (const product of products) {
+                try {
+                    const productRef = docFn(collectionFn(db, "products"), `product_${product.id}`);
+                    await setDocFn(productRef, { ...product, firebaseId: `product_${product.id}` });
+                } catch(e) { console.error("خطأ في حفظ منتج:", e); }
+            }
+            
+            // حفظ الفواتير
+            for (const sale of sales) {
+                try {
+                    const saleRef = docFn(collectionFn(db, "sales"), `sale_${sale.id}`);
+                    await setDocFn(saleRef, { ...sale, firebaseId: `sale_${sale.id}` });
+                } catch(e) { console.error("خطأ في حفظ فاتورة:", e); }
+            }
+            
+            console.log(`✅ تمت مزامنة ${products.length} منتج و ${sales.length} فاتورة مع Firebase`);
+            
+        } catch (error) {
+            console.error("❌ خطأ في المزامنة مع Firebase:", error);
+        }
+    }, 2000); // تأخير 2 ثانية لتجنب المزامنة المتكررة
+}
 
 // =============== ربط حدث إغلاق المتصفح ===============
 window.addEventListener('beforeunload', function() {
@@ -1947,39 +1994,38 @@ async function saveInvoice() {
     
     const total = currentInvoice.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const profit = currentInvoice.reduce((sum, item) => sum + ((item.price - item.cost) * item.quantity), 0);
-    
     // إعداد بيانات الفاتورة
-    const sale = { 
-        id: Date.now(), 
-        invoiceNumber: invoiceNumber, 
-        date: new Date().toLocaleDateString('ar-MA'), 
-        employeeName: currentUser.name, 
-        employeeId: currentUser.id, 
-        items: JSON.stringify(currentInvoice), // نحولها لنص لتناسب قاعدة البيانات
-        total: total, 
-        profit: profit 
-    };
+const sale = {
+    id: Date.now(),
+    invoiceNumber: invoiceNumber,
+    date: new Date().toLocaleDateString('ar-MA'),
+    employeeName: currentUser.name,
+    employeeId: currentUser.id,
+    items: JSON.stringify(currentInvoice),
+    total: total,
+    profit: profit
+};
 
-    // --- الجزء الجديد: إرسال المبيعة إلى Supabase أونلاين ---
-    try {
-        const { data, error } = await _supabase
-            .from('sales')
-            .insert([{
-                invoiceNumber: sale.invoiceNumber,
-                total: sale.total,
-                date: sale.date,
-                items: sale.items,
-                profit: sale.profit,
-                employeeName: sale.employeeName
-            }]);
+// الجزء الجديد: إرسال المبيعة إلى Supabase
+try {
+    // تم التعديل هنا: استخدام supabaseClient بدلاً من _supabase
+    const { data, error } = await supabaseClient
+        .from('sales')
+        .insert([{
+            invoiceNumber: sale.invoiceNumber,
+            total: sale.total,
+            date: sale.date,
+            items: sale.items,
+            profit: sale.profit,
+            employeeName: sale.employeeName
+        }]);
 
-        if (error) throw error;
-        console.log("✅ تمت المزامنة مع السحاب بنجاح!");
-    } catch (err) {
-        console.error("❌ خطأ في المزامنة أونلاين:", err.message);
-        // ملاحظة: الفاتورة ستبقى في المتصفح حتى لو فشل الإنترنت
-    }
-    // --------------------------------------------------
+    if (error) throw error;
+    console.log("✅ تمت المزامنة مع السحاب بنجاح!");
+} catch (err) {
+    console.error("❌ خطأ في المزامنة أونلاين:", err);
+    // الفاتورة ستبقى في المتصفح حتى لو فشل الإنترنت
+}
 
     // تنقيص الكمية من المخزن (القديم)
     currentInvoice.forEach(invItem => {
@@ -3002,26 +3048,65 @@ function showMonthlyEmployeeProfits() {
     console.log("✅ تم حساب الأرباح بنجاح (بدون تخمين 20%)");
     console.log("📊 البيانات:", employeeData);
 }
-// هاد الكود كيتسنى السيرفر يصيفط إشارة بلي كاين "فاتورة جديدة"
-const salesListener = _supabase
-  .channel('realtime-sales')
-  .on(
-    'postgres_changes', 
-    { 
-      event: 'INSERT', // كايراقب غير الإضافات الجديدة
-      schema: 'public', 
-      table: 'sales' 
-    }, 
-    (payload) => {
-      console.log('✅ وصلت فاتورة من التيليفون! جاري تحديث الشاشة...');
-      
-      // هاد السطر هو اللي كيخلي البيانات تبان عندك في البرنامج أوتوماتيكياً
-      if (typeof loadData === "function") {
-          loadData(); 
-      }
+function setupRealtime() {
+    console.log('🔄 جاري تشغيل Realtime بالطريقة الصحيحة (v2)...');
+
+    // تأكد من استخدام supabaseClient هنا أيضاً
+    const myChannel = supabaseClient.channel('sales_changes')
+    .on(
+        'postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'sales' }, 
+        (payload) => {
+            console.log('✅ تم استلام فاتورة جديدة:', payload.new);
+            if (typeof allSales !== 'undefined') {
+                allSales.unshift(payload.new);
+                if (typeof renderSalesTable === 'function') {
+                    renderSalesTable(allSales);
+                }
+            }
+            alert('وصلت فاتورة جديدة!');
+        }
+    )
+    .subscribe();
+}
+
+// تأكد من وجود supabase ثم شغل الدالة
+if (typeof supabase !== 'undefined' && supabase) {
+    setupRealtime();
+} else {
+    console.error('❌ supabase غير معرف');
+}
+async function fetchAllSales() {
+    console.log("⏳ جاري جلب البيانات من السيرفر باستخدام supabaseClient...");
+    
+    // تأكد من استخدام supabaseClient هنا (بدون شرطة سفلية)
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        const { data, error } = await supabaseClient
+            .from('sales')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error("❌ خطأ في السيرفر:", error.message);
+            alert("فشل جلب البيانات: " + error.message);
+            return;
+        }
+
+        if (data) {
+            console.log("✅ تم جلب البيانات بنجاح:", data);
+            allSales = data; 
+            
+            if (typeof renderSalesTable === 'function') {
+                renderSalesTable(allSales);
+            }
+            alert("تم تحديث البيانات من السيرفر بنجاح!");
+        }
+    } else {
+        console.error("❌ خطأ: supabaseClient غير معرف في السطر 3103");
+        alert("خطأ: لم يتم العثور على اتصال السيرفر. تأكد من إعدادات الربط.");
     }
-  )
-  .subscribe();
+}
+
 </script>
 </body>
 </html>
