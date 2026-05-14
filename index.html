@@ -585,10 +585,10 @@
         <i class="fas fa-users"></i> 📋 عرض الديون
     </button>
      
-
             <button class="btn" onclick="downloadBackup()"><i class="fas fa-download"></i> تصدير</button>
             <button class="btn" onclick="document.getElementById('fileInput').click()"><i class="fas fa-upload"></i> استيراد</button>
-            <input type="file" id="fileInput" style="display:none" onchange="restoreBackup(event)">
+        <input type="file" id="fileInput" style="" onchange="restoreBackup(event)">
+
         </div>
         <button class="btn logout-sidebar-btn" onclick="logout()">تسجيل الخروج</button>
     </div>
@@ -604,7 +604,8 @@
             <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-chart-simple"></i></div><div><div class="stat-label">رباح السنة</div><div class="stat-value" id="stat-total">0.00</div><div class="stat-label">د.م</div></div></div>
             <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-calendar-alt"></i></div><div><div class="stat-label">ارباح الشهر</div><div class="stat-value" id="stat-month-profit">0.00</div><div class="stat-label">د.م</div></div></div>
             <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div><div><div class="stat-label"> اجمالي الارباح</div><div class="stat-value" id="stat-year-profit">0.00</div><div class="stat-label">د.م</div></div></div>
-        <!-- أزرار المصاريف -->
+    
+            <!-- أزرار المصاريف -->
 <div style="margin: 20px 15px; display: flex; flex-direction: column; gap: 10px;">
     <button id="btnAddExpense" style="background: #dc3545; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;">
         <i class="fas fa-chart-line"></i> 📉 تسجيل مصروف
@@ -1380,133 +1381,6 @@ let saveTimeout = null;
 
 
 
-// =============== الاستماع المباشر للتحديثات من Firebase ===============
-function startRealtimeFirebaseSync() {
-    try {
-        const db = window.db;
-        const collectionFn = window.collection;
-        const onSnapshotFn = window.onSnapshot;
-        
-    if (!db || !onSnapshotFn) {
-            console.warn("⚠️ Firebase onSnapshot غير متاح");
-            return;
-        }
-        
-        // إلغاء الاشتراكات السابقة إن وجدت
-        if (productsUnsubscribe) productsUnsubscribe();
-        if (salesUnsubscribe) salesUnsubscribe();
-        
-        console.log("🔄 بدء الاستماع المباشر لتحديثات Firebase...");
-        
-        // الاستماع لتغييرات المنتجات
-        productsUnsubscribe = onSnapshotFn(collectionFn(db, "products"), (snapshot) => {
-            const newProducts = snapshot.docs.map(doc => doc.data());
-            // تنظيف البيانات
-            const cleanedProducts = newProducts.map(p => {
-                delete p.firebaseId;
-                return p;
-            });
-            
-            if (cleanedProducts.length > 0) {
-                // تجنب التحديث إذا كانت نفس البيانات
-                const currentIds = JSON.stringify(products.map(p => p.id).sort());
-                const newIds = JSON.stringify(cleanedProducts.map(p => p.id).sort());
-                
-                if (currentIds !== newIds || JSON.stringify(products) !== JSON.stringify(cleanedProducts)) {
-                    products = cleanedProducts;
-                    localStorage.setItem('wadii_products', JSON.stringify(products));
-                    console.log("🔄 تحديث تلقائي: تم تغيير المنتجات من موظف آخر");
-                    if (currentUser) {
-                        displayProducts();
-                        updateProductSelect();
-                        if (currentUser.role === 'owner') updateDashboard();
-                    }
-                }
-            }
-        }, (error) => {
-            console.error("خطأ في الاستماع للمنتجات:", error);
-        });
-        
-        // الاستماع لتغييرات الفواتير
-        salesUnsubscribe = onSnapshotFn(collectionFn(db, "sales"), (snapshot) => {
-            const newSales = snapshot.docs.map(doc => doc.data());
-            const cleanedSales = newSales.map(s => {
-                delete s.firebaseId;
-                return s;
-            });
-            
-            if (cleanedSales.length > 0) {
-                const currentIds = JSON.stringify(sales.map(s => s.id).sort());
-                const newIds = JSON.stringify(cleanedSales.map(s => s.id).sort());
-                
-                if (currentIds !== newIds || JSON.stringify(sales) !== JSON.stringify(cleanedSales)) {
-                    sales = cleanedSales;
-                    localStorage.setItem('wadii_sales', JSON.stringify(sales));
-                    console.log("🔄 تحديث تلقائي: تم تغيير الفواتير من موظف آخر");
-                    if (currentUser) {
-                        displaySales();
-                        updateInvoiceStats();
-                        if (currentUser.role === 'owner') {
-                            updateDashboard();
-                            displayRecentSales();
-                        }
-                    }
-                }
-            }
-        }, (error) => {
-            console.error("خطأ في الاستماع للفواتير:", error);
-        });
-        
-        console.log("✅ بدء الاستماع المباشر لتحديثات Firebase بنجاح");
-    } catch (error) {
-        console.error("❌ خطأ في بدء الاستماع المباشر:", error);
-    }
-}
-
-
-
-
-// =============== حفظ في Firebase في الخلفية ===============
-function saveToFirebaseInBackground() {
-    if (saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
-        try {
-            const db = window.db;
-            const collectionFn = window.collection;
-            const setDocFn = window.setDoc;
-            const docFn = window.doc;
-            
-            if (!db) {
-                console.warn("⚠️ Firebase غير متاح");
-                return;
-            }
-            
-            console.log("☁️ جاري مزامنة البيانات مع Firebase...");
-            
-            // حفظ المنتجات
-            for (const product of products) {
-                try {
-                    const productRef = docFn(collectionFn(db, "products"), `product_${product.id}`);
-                    await setDocFn(productRef, { ...product, firebaseId: `product_${product.id}` });
-                } catch(e) { console.error("خطأ في حفظ منتج:", e); }
-            }
-            
-            // حفظ الفواتير
-            for (const sale of sales) {
-                try {
-                    const saleRef = docFn(collectionFn(db, "sales"), `sale_${sale.id}`);
-                    await setDocFn(saleRef, { ...sale, firebaseId: `sale_${sale.id}` });
-                } catch(e) { console.error("خطأ في حفظ فاتورة:", e); }
-            }
-            
-            console.log(`✅ تمت مزامنة ${products.length} منتج و ${sales.length} فاتورة مع Firebase`);
-            
-        } catch (error) {
-            console.error("❌ خطأ في المزامنة مع Firebase:", error);
-        }
-    }, 2000); // تأخير 2 ثانية لتجنب المزامنة المتكررة
-}
-
 // =============== ربط حدث إغلاق المتصفح ===============
 window.addEventListener('beforeunload', function() {
     if (sales.length > 0 || products.length > 0) {
@@ -2153,7 +2027,7 @@ function printFullReport() {
 }
 
 function downloadBackup() {
-    if (!checkPermission()) return;
+
     const data = { products: products, sales: sales, backupDate: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -3106,7 +2980,6 @@ async function fetchAllSales() {
         alert("خطأ: لم يتم العثور على اتصال السيرفر. تأكد من إعدادات الربط.");
     }
 }
-
 </script>
 </body>
 </html>
