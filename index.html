@@ -512,7 +512,6 @@
 </div>
 <div id="loginContainer" class="login-container">
     <div class="login-box">
-        <img src="logo.png" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover;">
         <h2>متجر وديع</h2>
         <p style="color: #666; margin-bottom: 20px;">نظام إدارة المبيعات</p>
         <button class="login-btn google-btn" onclick="loginWithGoogle()"><i class="fab fa-google"></i> تسجيل الدخول عبر Gmail</button>
@@ -551,7 +550,6 @@
 
 <div class="sidebar no-print">
     <div class="sidebar-header">
-       <img src="https://via.placeholder.com/80?text=Store" alt="Logo" class="store-logo">
         <h2 class="store-name">متجر وديع</h2>
         <div class="user-role" id="sidebarUserRole">youssef</div>
     </div>
@@ -585,10 +583,10 @@
         <i class="fas fa-users"></i> 📋 عرض الديون
     </button>
      
+
             <button class="btn" onclick="downloadBackup()"><i class="fas fa-download"></i> تصدير</button>
             <button class="btn" onclick="document.getElementById('fileInput').click()"><i class="fas fa-upload"></i> استيراد</button>
-        <input type="file" id="fileInput" style="" onchange="restoreBackup(event)">
-
+            <input type="file" id="fileInput" style="display:none" onchange="restoreBackup(event)">
         </div>
         <button class="btn logout-sidebar-btn" onclick="logout()">تسجيل الخروج</button>
     </div>
@@ -604,8 +602,7 @@
             <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-chart-simple"></i></div><div><div class="stat-label">رباح السنة</div><div class="stat-value" id="stat-total">0.00</div><div class="stat-label">د.م</div></div></div>
             <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-calendar-alt"></i></div><div><div class="stat-label">ارباح الشهر</div><div class="stat-value" id="stat-month-profit">0.00</div><div class="stat-label">د.م</div></div></div>
             <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div><div><div class="stat-label"> اجمالي الارباح</div><div class="stat-value" id="stat-year-profit">0.00</div><div class="stat-label">د.م</div></div></div>
-    
-            <!-- أزرار المصاريف -->
+        <!-- أزرار المصاريف -->
 <div style="margin: 20px 15px; display: flex; flex-direction: column; gap: 10px;">
     <button id="btnAddExpense" style="background: #dc3545; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;">
         <i class="fas fa-chart-line"></i> 📉 تسجيل مصروف
@@ -659,7 +656,7 @@
     </button>
     
 </div>
-        <div class="recent-sales-card">
+        <div class="card" style="display: none;">
             <h4><i class="fas fa-clock"></i> آخر المبيعات</h4>
             <table style="width:100%"><thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>الموظف</th><th>المنتجات</th><th>المجموع</th><th>الربح</th></tr></thead><tbody id="recentSalesBody"></tbody></table>
         </div>
@@ -1048,6 +1045,7 @@ function saveData() {
     localStorage.setItem('wadii_sales', JSON.stringify(sales));
     console.log(`💾 تم حفظ البيانات: ${products.length} منتج, ${sales.length} فاتورة`);
 }						
+
 // =============== نظام المصاريف المنزلية ===============
 
 const EXPENSES_KEY = 'my_expenses';
@@ -1358,7 +1356,7 @@ console.log("✅ نظام الديون جاهز");
 
 // =============== بيانات المستخدمين (محفوظة كما هي) ===============
 const users = [
-    { id: 1, name: "صاحب المتجر", email: "z", password: "9", role: "owner", avatar: "أ" },
+    { id: 1, name: "youssef", email: "z", password: "9", role: "owner", avatar: "أ" },
     { id: 2, name: "yassir", email: "y", password: "y", role: "employee", avatar: "ي" },
     { id: 3, name: "chaimaa", email: "c", password: "c", role: "employee", avatar: "س" },
     { id: 4, name: "mariam", email: "m", password: "m", role: "employee", avatar: "م" }
@@ -1381,6 +1379,133 @@ let saveTimeout = null;
 
 
 
+// =============== الاستماع المباشر للتحديثات من Firebase ===============
+function startRealtimeFirebaseSync() {
+    try {
+        const db = window.db;
+        const collectionFn = window.collection;
+        const onSnapshotFn = window.onSnapshot;
+        
+    if (!db || !onSnapshotFn) {
+            console.warn("⚠️ Firebase onSnapshot غير متاح");
+            return;
+        }
+        
+        // إلغاء الاشتراكات السابقة إن وجدت
+        if (productsUnsubscribe) productsUnsubscribe();
+        if (salesUnsubscribe) salesUnsubscribe();
+        
+        console.log("🔄 بدء الاستماع المباشر لتحديثات Firebase...");
+        
+        // الاستماع لتغييرات المنتجات
+        productsUnsubscribe = onSnapshotFn(collectionFn(db, "products"), (snapshot) => {
+            const newProducts = snapshot.docs.map(doc => doc.data());
+            // تنظيف البيانات
+            const cleanedProducts = newProducts.map(p => {
+                delete p.firebaseId;
+                return p;
+            });
+            
+            if (cleanedProducts.length > 0) {
+                // تجنب التحديث إذا كانت نفس البيانات
+                const currentIds = JSON.stringify(products.map(p => p.id).sort());
+                const newIds = JSON.stringify(cleanedProducts.map(p => p.id).sort());
+                
+                if (currentIds !== newIds || JSON.stringify(products) !== JSON.stringify(cleanedProducts)) {
+                    products = cleanedProducts;
+                    localStorage.setItem('wadii_products', JSON.stringify(products));
+                    console.log("🔄 تحديث تلقائي: تم تغيير المنتجات من موظف آخر");
+                    if (currentUser) {
+                        displayProducts();
+                        updateProductSelect();
+                        if (currentUser.role === 'owner') updateDashboard();
+                    }
+                }
+            }
+        }, (error) => {
+            console.error("خطأ في الاستماع للمنتجات:", error);
+        });
+        
+        // الاستماع لتغييرات الفواتير
+        salesUnsubscribe = onSnapshotFn(collectionFn(db, "sales"), (snapshot) => {
+            const newSales = snapshot.docs.map(doc => doc.data());
+            const cleanedSales = newSales.map(s => {
+                delete s.firebaseId;
+                return s;
+            });
+            
+            if (cleanedSales.length > 0) {
+                const currentIds = JSON.stringify(sales.map(s => s.id).sort());
+                const newIds = JSON.stringify(cleanedSales.map(s => s.id).sort());
+                
+                if (currentIds !== newIds || JSON.stringify(sales) !== JSON.stringify(cleanedSales)) {
+                    sales = cleanedSales;
+                    localStorage.setItem('wadii_sales', JSON.stringify(sales));
+                    console.log("🔄 تحديث تلقائي: تم تغيير الفواتير من موظف آخر");
+                    if (currentUser) {
+                        displaySales();
+                        updateInvoiceStats();
+                        if (currentUser.role === 'owner') {
+                            updateDashboard();
+                            displayRecentSales();
+                        }
+                    }
+                }
+            }
+        }, (error) => {
+            console.error("خطأ في الاستماع للفواتير:", error);
+        });
+        
+        console.log("✅ بدء الاستماع المباشر لتحديثات Firebase بنجاح");
+    } catch (error) {
+        console.error("❌ خطأ في بدء الاستماع المباشر:", error);
+    }
+}
+
+
+
+
+// =============== حفظ في Firebase في الخلفية ===============
+function saveToFirebaseInBackground() {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+        try {
+            const db = window.db;
+            const collectionFn = window.collection;
+            const setDocFn = window.setDoc;
+            const docFn = window.doc;
+            
+            if (!db) {
+                console.warn("⚠️ Firebase غير متاح");
+                return;
+            }
+            
+            console.log("☁️ جاري مزامنة البيانات مع Firebase...");
+            
+            // حفظ المنتجات
+            for (const product of products) {
+                try {
+                    const productRef = docFn(collectionFn(db, "products"), `product_${product.id}`);
+                    await setDocFn(productRef, { ...product, firebaseId: `product_${product.id}` });
+                } catch(e) { console.error("خطأ في حفظ منتج:", e); }
+            }
+            
+            // حفظ الفواتير
+            for (const sale of sales) {
+                try {
+                    const saleRef = docFn(collectionFn(db, "sales"), `sale_${sale.id}`);
+                    await setDocFn(saleRef, { ...sale, firebaseId: `sale_${sale.id}` });
+                } catch(e) { console.error("خطأ في حفظ فاتورة:", e); }
+            }
+            
+            console.log(`✅ تمت مزامنة ${products.length} منتج و ${sales.length} فاتورة مع Firebase`);
+            
+        } catch (error) {
+            console.error("❌ خطأ في المزامنة مع Firebase:", error);
+        }
+    }, 2000); // تأخير 2 ثانية لتجنب المزامنة المتكررة
+}
+
 // =============== ربط حدث إغلاق المتصفح ===============
 window.addEventListener('beforeunload', function() {
     if (sales.length > 0 || products.length > 0) {
@@ -1388,21 +1513,15 @@ window.addEventListener('beforeunload', function() {
     }
 });
 
-// =============== دوال عرض أحدث المبيعات ===============
 function displayRecentSales() {
-    const recentBody = document.getElementById('recentSalesBody');
-    if (!recentBody) return;
-    recentBody.innerHTML = '';
-    sales.slice(0, 10).forEach(sale => {
-        recentBody.innerHTML += `<tr><td><span class="product-badge">${sale.date}</span></td>
-                    <td><span class="invoice-number">${sale.invoiceNumber}</span></td>
-                    <td><span class="employee-badge"><i class="fas fa-user"></i> ${sale.employeeName || 'غير معروف'}</span></td>
-                    <td><span class="product-badge">${sale.items[0]?.name || '-'}${sale.items.length > 1 ? ` +${sale.items.length-1}` : ''}</span></td>
-                    <td><span class="amount-badge">${sale.total.toFixed(2)} د.م</span></td>
-                    <td><span class="amount-badge">${sale.profit.toFixed(2)} د.م</span></td>
-                </tr>`;
-    });
+    return;
 }
+window.displayRecentSales = displayRecentSales;
+
+function updateInvoiceStats() {
+    return;
+}
+window.updateInvoiceStats = updateInvoiceStats;
 
 // =============== باقي دوال النظام (محفوظة كما هي مع تعديل saveData) ===============
 function previewProductImage(event) {
@@ -1926,32 +2045,216 @@ try {
 function displaySales() {
     const tbody = document.getElementById('salesBody');
     if (!tbody) return;
+
     const filteredSales = getFilteredSales();
     tbody.innerHTML = '';
-    if (filteredSales.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;">📭 لا توجد فواتير في هذه الفترة</td></tr>'; return; }
-    filteredSales.forEach(sale => {
-        const productsList = sale.items.map(item => item.name).join(', ');
-        tbody.innerHTML += `<tr>
-            <td><span class="product-badge">${sale.date}</span></td>
-            <td><span class="invoice-number">${sale.invoiceNumber}</span></td>
-            <td><span class="employee-badge"><i class="fas fa-user"></i> ${sale.employeeName || 'غير معروف'}</span></td>
-            <td style="text-align: right;">${productsList}</td>
-            <td><strong style="color: var(--success);">${sale.total.toFixed(2)} د.م</strong></td>
-            <td><span class="amount-badge">${sale.profit.toFixed(2)} د.م</span></td>
-            <td class="no-print"><button class="btn btn-small btn-secondary" onclick="printInvoice(${sale.id})"><i class="fas fa-print"></i></button> ${currentUser.role === 'owner' ? `<button class="btn btn-small btn-danger" onclick="deleteSale(${sale.id})"><i class="fas fa-trash"></i></button>` : ''}</td>
-        </tr>`;
-    });
-    updateInvoiceStats();
-}
 
-function deleteSale(saleId) {
-    if (confirm('هل أنت متأكد من حذف هذه الفاتورة؟')) {
-        sales = sales.filter(s => s.id !== saleId);
-        saveData();
+    if (filteredSales.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">لا توجد فواتير مسجلة</td></tr>';
+        return;
+    }
+
+    // التحقق من هوية المدير يوسف لإظهار زر الحذف
+    const isManager = (typeof currentEmployee !== 'undefined' && (currentEmployee === 'youssef' || currentEmployee === 'admin')) || true; 
+
+    filteredSales.forEach(sale => {
+        // حماية وتحويل حقل المنتجات الآتي من السيرفر
+        let itemsArray = [];
+        if (sale.items) {
+            if (Array.isArray(sale.items)) {
+                itemsArray = sale.items;
+            } else if (typeof sale.items === 'string') {
+                try {
+                    itemsArray = JSON.parse(sale.items);
+                } catch (e) {
+                    console.error("خطأ في قراءة نص المنتجات لفاتورة:", sale.invoiceNumber, e);
+                    itemsArray = [];
+                }
+            }
+        }
+
+        const productsList = itemsArray.map(item => item.name || "منتج غير معروف").join(', ');
+        
+        // تأمين المعرّف البرمجي لتمريره بأمان للدوال
+        const saleId = sale.id ? `'${sale.id}'` : `'${sale.invoiceNumber}'`;
+
+        // ربط الأزرار بدوال نظامك المباشرة وصيانة التمرير
+        let actionButtons = `
+            <button class="btn btn-small btn-secondary" onclick="viewInvoice(${saleId})">عرض</button>
+            <button class="btn btn-small btn-success" onclick="printSingleInvoice(${saleId})"><i class="fas fa-print"></i> طباعة</button>
+        `;
+
+        if (isManager) {
+            actionButtons += `
+                <button class="btn btn-small btn-danger" style="background-color: #dc3545; color: white;" onclick="deleteInvoice(${saleId})"><i class="fas fa-trash"></i> حذف</button>
+            `;
+        }
+
+        tbody.innerHTML += `
+            <tr>
+                <td><span class="product-badge">${sale.date || ''}</span></td>
+                <td><span class="invoice-number">${sale.invoiceNumber || ''}</span></td>
+                <td><span class="employee-badge"><i class="fas fa-user"></i> ${sale.employeeName || 'صاحب المتجر'}</span></td>
+                <td style="text-align: right;">${productsList}</td>
+                <td><strong style="color: var(--success);">${Number(sale.total || 0).toFixed(2)} د.م.</strong></td>
+                <td><span class="amount-badge">${Number(sale.profit || 0).toFixed(2)} د.م.</span></td>
+                <td class="no-print">
+                    <div class="actions-wrapper" style="display: flex; gap: 5px;">
+                        ${actionButtons}
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    if (typeof updateInvoiceStats === 'function') {
         updateInvoiceStats();
-        displaySales();
-        if (currentUser.role === 'owner') updateDashboard();
-        alert('✅ تم حذف الفاتورة');
+    }
+}  
+function printSingleInvoice(id) {
+    console.log("⏳ جاري تحضير الفاتورة للطباعة، المعرف المعالج:", id);
+    
+    // البحث داخل مصفوفة sales المعتمدة في نظامك
+    const sale = sales.find(s => s.id == id || s.invoiceNumber == id);
+    
+    if (!sale) {
+        alert("تعذر العثور على بيانات الفاتورة في الذاكرة لتشغيل الطباعة!");
+        return;
+    }
+
+    let itemsArray = [];
+    if (sale.items) {
+        if (Array.isArray(sale.items)) {
+            itemsArray = sale.items;
+        } else if (typeof sale.items === 'string') {
+            try { itemsArray = JSON.parse(sale.items); } catch (e) { console.error(e); }
+        }
+    }
+
+    let itemsRows = itemsArray.map(item => `
+        <tr>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${item.name || 'منتج'}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.quantity || 1}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: left;">${Number(item.price || 0).toFixed(2)} د.م.</td>
+        </tr>
+    `).join('');
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html dir="rtl" lang="ar">
+        <head>
+            <title>طباعة فاتورة ${sale.invoiceNumber || ''}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; direction: rtl; text-align: right; }
+                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                th, td { border: 1px solid #ddd; padding: 8px; }
+                th { background-color: #f5f5f5; }
+            </style>
+        </head>
+        <body>
+            <h2>متجر وديع - WADIH STORE</h2>
+            <p><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber || ''}</p>
+            <p><strong>التاريخ:</strong> ${sale.date || ''}</p>
+            <p><strong>الموظف:</strong> ${sale.employeeName || 'صاحب المتجر'}</p>
+            <table>
+                <thead>
+                    <tr><th>المنتج</th><th>الكمية</th><th>السعر</th></tr>
+                </thead>
+                <tbody>${itemsRows}</tbody>
+            </table>
+            <h3>الإجمالي: ${Number(sale.total || 0).toFixed(2)} د.م.</h3>
+            <script>
+                window.onload = function() { window.print(); setTimeout(window.close, 500); };
+
+    `);
+    printWindow.document.close();
+}
+function viewInvoice(id) {
+    console.log("⏳ جاري جلب تفاصيل الفاتورة للعرض، المعرف:", id);
+    
+    // البحث عن الفاتورة في مصفوفة المبيعات المعتمدة لديك
+    const sale = sales.find(s => s.id == id || s.invoiceNumber == id);
+    
+    if (!sale) {
+        alert("عذراً، لم يتم العثور على هذه الفاتورة في الذاكرة!");
+        return;
+    }
+
+    // تحويل حقل المنتجات الآتي من السيرفر بنجاح
+    let itemsArray = [];
+    if (sale.items) {
+        if (Array.isArray(sale.items)) {
+            itemsArray = sale.items;
+        } else if (typeof sale.items === 'string') {
+            try { itemsArray = JSON.parse(sale.items); } catch (e) { console.error(e); }
+        }
+    }
+
+    // بناء نص تفاصيل المنتجات المتواجدة داخل الفاتورة
+    let productsDetails = itemsArray.map((item, index) => {
+        return `${index + 1}. ${item.name || 'منتج'} | الكمية: ${item.quantity || 1} | السعر: ${Number(item.price || 0).toFixed(2)} د.م.`;
+    }).join('\n');
+
+    // عرض تفاصيل الفاتورة في نافذة تنبيه واضحة ومنسقة
+    alert(`📄 تفاصيل الفاتورة رقم: ${sale.invoiceNumber || 'غير معروف'}
+------------------------------------------
+📅 التاريخ: ${sale.date || ''}
+👤 الموظف: ${sale.employeeName || 'صاحب المتجر'}
+
+📦 المنتجات المبيعة:
+${productsDetails || 'لا توجد منتجات مسجلة'}
+
+------------------------------------------
+💰 المجموع الإجمالي: ${Number(sale.total || 0).toFixed(2)} د.م.
+📈 أرباح الفاتورة: ${Number(sale.profit || 0).toFixed(2)} د.م.`);
+}
+async function deleteInvoice(id) {
+    if (!confirm("⚠️ تنبيه هام: هل أنت متأكد تماماً من رغبتك في حذف هذه الفاتورة نهائياً من المتجر ومن السيرفر؟")) return;
+
+    try {
+        console.log("⏳ بدأت عملية الحذف للفاتورة ذات المعرف الأصلي:", id);
+        
+        // تحويل المعرّف إلى رقم صريح لإرساله للسيرفر بشكل صحيح
+        const numericId = Number(id);
+
+        // 1. الحذف من قاعدة بيانات سيرفر Supabase
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            
+            // محاولة الحذف بالمعرّف الرقمي أولاً (وهو الأصح)
+            let { error } = await supabaseClient
+                .from('sales')
+                .delete()
+                .eq('id', numericId);
+
+            if (error) {
+                console.warn("فشل الحذف بالمعرف الرقمي، جاري المحاولة بنص المعرف أو رقم الفاتورة...", error);
+                
+                // محاولة احتياطية ثانية برقم الفاتورة الأصلي كـ string
+                const { error: invoiceError } = await supabaseClient
+                    .from('sales')
+                    .delete()
+                    .eq('invoiceNumber', String(id));
+                
+                if (invoiceError) throw invoiceError;
+            }
+            
+            console.log("✅ أرسل أمر الحذف بنجاح إلى سيرفر Supabase.");
+        }
+
+        // 2. تحديث البيانات محلياً في ذاكرة المتصفح والـ LocalStorage فوراً
+        sales = sales.filter(s => s.id != id && s.invoiceNumber != id);
+        localStorage.setItem('wadii_sales', JSON.stringify(sales));
+
+        alert("🗑️ تم حذف الفاتورة بنجاح وتحديث قاعدة البيانات والسجل.");
+        
+        // 3. إعادة تحديث السجل والجدول أمامك في الصفحة
+        if (typeof displaySales === 'function') {
+            displaySales();
+        }
+
+    } catch (err) {
+        console.error("❌ خطأ حرج حدث أثناء عملية الحذف من السيرفر:", err);
+        alert("عذراً، فشل حذف الفاتورة من السيرفر! تأكد من صلاحيات الـ RLS في Supabase. السبب: " + err.message);
     }
 }
 function printInvoice(saleId) {
@@ -2027,7 +2330,7 @@ function printFullReport() {
 }
 
 function downloadBackup() {
-
+    if (!checkPermission()) return;
     const data = { products: products, sales: sales, backupDate: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2943,43 +3246,52 @@ function setupRealtime() {
     )
     .subscribe();
 }
-
-// تأكد من وجود supabase ثم شغل الدالة
-if (typeof supabase !== 'undefined' && supabase) {
-    setupRealtime();
-} else {
-    console.error('❌ supabase غير معرف');
-}
 async function fetchAllSales() {
     console.log("⏳ جاري جلب البيانات من السيرفر باستخدام supabaseClient...");
-    
-    // تأكد من استخدام supabaseClient هنا (بدون شرطة سفلية)
-    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+
+    try {
+        // 1. جلب الفواتير من جدول sales وترتيبها من الأحدث للأقدم
         const { data, error } = await supabaseClient
             .from('sales')
             .select('*')
             .order('created_at', { ascending: false });
 
+        // 2. التحقق من وجود خطأ أثناء الاتصال بالسيرفر
         if (error) {
             console.error("❌ خطأ في السيرفر:", error.message);
             alert("فشل جلب البيانات: " + error.message);
             return;
         }
 
+        // 3. إذا وصلت البيانات بنجاح
         if (data) {
             console.log("✅ تم جلب البيانات بنجاح:", data);
-            allSales = data; 
             
+            // تحديث مصفوفة المبيعات المحلية بالبيانات القادمة من السيرفر
+            sales = data;
+
+            // 4. حفظ الفواتير في المتصفح لضمان عدم اختفائها عند التحديث
+            localStorage.setItem('savedSales', JSON.stringify(sales));
+            localStorage.setItem('wadii_sales', JSON.stringify(sales)); // احتياطاً حسب التسمية لديك
+
+            // 5. تحديث واجهة المستخدم والجدول إذا كانت الدالة موجودة
             if (typeof renderSalesTable === 'function') {
-                renderSalesTable(allSales);
+                renderSalesTable(sales);
+            } else if (typeof updateSalesTable === 'function') {
+                updateSalesTable();
             }
+
+            console.log(`💾 تم حفظ البيانات في المتصفح وتحديث السجل: ${sales.length} فاتورة.`);
             alert("تم تحديث البيانات من السيرفر بنجاح!");
         }
-    } else {
-        console.error("❌ خطأ: supabaseClient غير معرف في السطر 3103");
-        alert("خطأ: لم يتم العثور على اتصال السيرفر. تأكد من إعدادات الربط.");
+
+    } catch (err) {
+        console.error("❌ خطأ غير متوقع:", err);
+        alert("حدث خطأ أثناء الاتصال بالشبكة، تأكد من إعدادات الربط.");
     }
 }
+
+
 </script>
 </body>
 </html>
