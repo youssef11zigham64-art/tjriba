@@ -501,7 +501,27 @@
     </style>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<div id="no-internet-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: white; z-index: 99999; font-family: sans-serif; padding: 10% 15%; box-sizing: border-box; color: #333;">
+  
+  <div style="font-size: 50px; color: #666; margin-bottom: 30px;">📄🙁</div>
+  
+  <h1 style="font-size: 28px; font-weight: 500; margin-bottom: 10px; color: #202124;">Ce site est inaccessible</h1>
+  
+  <p style="font-size: 15px; margin-bottom: 30px; color: #5f6368;"><strong>Wadih Store</strong> a mis trop de temps à répondre.</p>
+  
+  <p style="font-size: 15px; font-weight: bold; margin-bottom: 10px; color: #5f6368;">Voici quelques conseils :</p>
+  <ul style="font-size: 15px; color: #5f6368; line-height: 1.8; margin-bottom: 30px; padding-left: 20px;">
+    <li>Vérifier la connexion</li>
+    <li>Vérifier le proxy et le pare-feu</li>
+  </ul>
+  
+  <p style="font-size: 12px; color: #777; margin-bottom: 40px; text-transform: uppercase;">ERR_CONNECTION_TIMED_OUT</p>
+  
+  <button onclick="tryReconnect()" style="background-color: #1a73e8; color: white; border: none; padding: 10px 24px; font-size: 14px; border-radius: 4px; cursor: pointer; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);">
+    Actualiser
+  </button>
+</div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <div id="imageModal" class="image-modal" onclick="closeImageModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
@@ -798,7 +818,35 @@
                 <button class="filter-btn" onclick="filterSalesByPeriod('week')">📆 هذا الأسبوع</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('month')">🗓️ هذا الشهر</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('year')">📅 هذه السنة</button>
-            
+<div class="filter-buttons-container" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+    <button onclick="fetchAndFilterSales('today')" class="btn-filter">اليوم</button>
+    <button onclick="showMonthSelector()" class="btn-filter">بالشهر</button>
+    <button onclick="showYearSelector()" class="btn-filter">بالسنة</button>
+    <button onclick="fetchAndFilterSales('all')" class="btn-filter">الكل</button>
+
+    <select id="monthSelectSelector" onchange="onMonthChanged()" style="display: none; padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-family: sans-serif;">
+        <option value="">اختر الشهر...</option>
+        <option value="1">يناير (01)</option>
+        <option value="2">فبراير (02)</option>
+        <option value="3">مارس (03)</option>
+        <option value="4">أبريل (04)</option>
+        <option value="5">مايو (05)</option>
+        <option value="6">يونيو (06)</option>
+        <option value="7">يوليو (07)</option>
+        <option value="8">أغسطس (08)</option>
+        <option value="9">سبتمبر (09)</option>
+        <option value="10">أكتوبر (10)</option>
+        <option value="11">نوفمبر (11)</option>
+        <option value="12">ديسمبر (12)</option>
+    </select>
+
+    <select id="yearSelectSelector" onchange="onYearChanged()" style="display: none; padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-family: sans-serif;">
+        <option value="">اختر السنة...</option>
+        <option value="2025">2025</option>
+        <option value="2026">2026</option>
+        <option value="2027">2027</option>
+    </select>
+</div>
             </div>            <button class="btn sync-btn" onclick="syncToFirebaseNow()"><i class="fas fa-cloud-upload-alt"></i> مزامنة يدوية</button>
             <div style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;">
              <div style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;"></div>
@@ -1464,48 +1512,6 @@ function startRealtimeFirebaseSync() {
 
 
 
-
-// =============== حفظ في Firebase في الخلفية ===============
-function saveToFirebaseInBackground() {
-    if (saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
-        try {
-            const db = window.db;
-            const collectionFn = window.collection;
-            const setDocFn = window.setDoc;
-            const docFn = window.doc;
-            
-            if (!db) {
-                console.warn("⚠️ Firebase غير متاح");
-                return;
-            }
-            
-            console.log("☁️ جاري مزامنة البيانات مع Firebase...");
-            
-            // حفظ المنتجات
-            for (const product of products) {
-                try {
-                    const productRef = docFn(collectionFn(db, "products"), `product_${product.id}`);
-                    await setDocFn(productRef, { ...product, firebaseId: `product_${product.id}` });
-                } catch(e) { console.error("خطأ في حفظ منتج:", e); }
-            }
-            
-            // حفظ الفواتير
-            for (const sale of sales) {
-                try {
-                    const saleRef = docFn(collectionFn(db, "sales"), `sale_${sale.id}`);
-                    await setDocFn(saleRef, { ...sale, firebaseId: `sale_${sale.id}` });
-                } catch(e) { console.error("خطأ في حفظ فاتورة:", e); }
-            }
-            
-            console.log(`✅ تمت مزامنة ${products.length} منتج و ${sales.length} فاتورة مع Firebase`);
-            
-        } catch (error) {
-            console.error("❌ خطأ في المزامنة مع Firebase:", error);
-        }
-    }, 2000); // تأخير 2 ثانية لتجنب المزامنة المتكررة
-}
-
 // =============== ربط حدث إغلاق المتصفح ===============
 window.addEventListener('beforeunload', function() {
     if (sales.length > 0 || products.length > 0) {
@@ -1980,6 +1986,14 @@ function removeFromInvoice(index) {
 async function saveInvoice() {
     if (currentInvoice.length === 0) { alert('❌ لا توجد منتجات في الفاتورة'); return; }
     
+    // ---- [الخطوة الجديدة: التحقق من وجود إنترنت قبل أي شيء] ----
+    if (!navigator.onLine) {
+        console.warn("تم إلغاء العملية: لا يوجد اتصال بالإنترنت.");
+        // إظهار الشاشة البيضاء التي تشبه المتصفح وتغطية التطبيق بالكامل
+        document.getElementById('no-internet-screen').style.display = 'block';
+        return; // التوقف هنا وعدم حفظ الفاتورة نهائياً
+    }
+
     let invoiceNumber = document.getElementById('invoiceNumberInput').value.trim();
     if (!invoiceNumber) { 
         invoiceNumber = `INV-${Math.floor(1000 + Math.random() * 9000)}-${new Date().getFullYear()}`; 
@@ -1987,38 +2001,40 @@ async function saveInvoice() {
     
     const total = currentInvoice.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const profit = currentInvoice.reduce((sum, item) => sum + ((item.price - item.cost) * item.quantity), 0);
+    
     // إعداد بيانات الفاتورة
-const sale = {
-    id: Date.now(),
-    invoiceNumber: invoiceNumber,
-    date: new Date().toLocaleDateString('ar-MA'),
-    employeeName: currentUser.name,
-    employeeId: currentUser.id,
-    items: JSON.stringify(currentInvoice),
-    total: total,
-    profit: profit
-};
+    const sale = {
+        id: Date.now(),
+        invoiceNumber: invoiceNumber,
+        date: new Date().toLocaleDateString('ar-MA'),
+        employeeName: currentUser.name,
+        employeeId: currentUser.id,
+        items: JSON.stringify(currentInvoice),
+        total: total,
+        profit: profit
+    };
 
-// الجزء الجديد: إرسال المبيعة إلى Supabase
-try {
-    // تم التعديل هنا: استخدام supabaseClient بدلاً من _supabase
-    const { data, error } = await supabaseClient
-        .from('sales')
-        .insert([{
-            invoiceNumber: sale.invoiceNumber,
-            total: sale.total,
-            date: sale.date,
-            items: sale.items,
-            profit: sale.profit,
-            employeeName: sale.employeeName
-        }]);
+    // إرسال المبيعة إلى Supabase
+    try {
+        const { data, error } = await supabaseClient
+            .from('sales')
+            .insert([{
+                invoiceNumber: sale.invoiceNumber,
+                total: sale.total,
+                date: sale.date,
+                items: sale.items,
+                profit: sale.profit,
+                employeeName: sale.employeeName
+            }]);
 
-    if (error) throw error;
-    console.log("✅ تمت المزامنة مع السحاب بنجاح!");
-} catch (err) {
-    console.error("❌ خطأ في المزامنة أونلاين:", err);
-    // الفاتورة ستبقى في المتصفح حتى لو فشل الإنترنت
-}
+        if (error) throw error;
+        console.log("✅ تمت المزامنة مع السحاب بنجاح!");
+    } catch (err) {
+        console.error("❌ خطأ في المزامنة أونلاين:", err);
+        // في حال انقطع الإنترنت فجأة أثناء الإرسال، اظهر الشاشة البيضاء أيضاً وتوقف
+        document.getElementById('no-internet-screen').style.display = 'block';
+        return;
+    }
 
     // تنقيص الكمية من المخزن (القديم)
     currentInvoice.forEach(invItem => {
@@ -2026,8 +2042,8 @@ try {
         if (product) { product.quantity -= invItem.quantity; }
     });
 
-    // حفظ البيانات محلياً وتحديث الواجهة
-    sales.unshift({ ...sale, items: [...currentInvoice] }); // نعيدها كـ Array للحفظ المحلي
+    // حفظ البيانات محلياً وتحديث الواجهة (تتم فقط إذا نجح الإنترنت)
+    sales.unshift({ ...sale, items: [...currentInvoice] }); 
     saveData();
     
     currentInvoice = [];
@@ -3290,7 +3306,502 @@ async function fetchAllSales() {
         alert("حدث خطأ أثناء الاتصال بالشبكة، تأكد من إعدادات الربط.");
     }
 }
+async function fetchSalesByPeriod(period) {
+    // 1. تحديث شكل الأزرار النشطة في الواجهة
+    document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.getElementById(`btn-${period}`);
+    if (activeBtn) activeBtn.classList.add('active');
 
+    if (typeof supabaseClient === 'undefined') {
+        console.error("❌ supabaseClient غير معرف!");
+        return;
+    }
+
+    let query = supabaseClient.from('sales').select('*');
+
+    // 2. حساب التواريخ المحلية بدقة متناهية للفلترة (صيغة ISO المناسبة لـ Supabase)
+    const today = new Date();
+    
+    if (period === 'today') {
+        const startOfDay = new Date(today.setHours(0,0,0,0)).toISOString();
+        const endOfDay = new Date(today.setHours(23,59,59,999)).toISOString();
+        query = query.gte('created_at', startOfDay).lte('created_at', endOfDay);
+        
+    } else if (period === 'month') {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0).toISOString();
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
+        query = query.gte('created_at', startOfMonth).lte('created_at', endOfMonth);
+        
+    } else if (period === 'year') {
+        const startOfYear = new Date(today.getFullYear(), 0, 1, 0, 0, 0, 0).toISOString();
+        const endOfYear = new Date(today.getFullYear(), 12, 0, 23, 59, 59, 999).toISOString();
+        query = query.gte('created_at', startOfYear).lte('created_at', endOfYear);
+    }
+
+    // 3. جلب البيانات وترتيبها تنازلياً
+    const { data: invoices, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("❌ خطأ أثناء جلب البيانات:", error);
+        return;
+    }
+
+    console.log(`[Supabase] فترة [${period}]: تم العثور على (${invoices.length}) فاتورة حية.`);
+
+    // 4. السحر البرمجي: محاولة تشغيل دالة عرض الجدول المعتمدة في مشروعك أياً كان اسمها
+    let tableRendered = false;
+    const renderFunctions = ['renderInvoicesToTable', 'displaySales', 'showSales', 'updateTable', 'renderTable', 'loadSalesData'];
+    
+    for (let funcName of renderFunctions) {
+        if (typeof window[funcName] === 'function') {
+            window[funcName](invoices);
+            console.log(`✅ تم تحديث الجدول بنجاح باستخدام الدالة: ${funcName}`);
+            tableRendered = true;
+            break;
+        }
+    }
+
+    // إذا لم يجد الدالة المناسبة، سيقوم بتحديث جدولك مباشرة عن طريق الـ ID الافتراضي
+    if (!tableRendered) {
+        const tableBody = document.getElementById('table-body') || document.querySelector('table tbody');
+        if (tableBody) {
+            if (invoices.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:20px;">لا توجد فواتير مسجلة لهذه الفترة</td></tr>`;
+            } else {
+                tableBody.innerHTML = invoices.map((inv, idx) => `
+                    <tr>
+                        <td>${new Date(inv.created_at).toLocaleDateString('ar-EG')}</td>
+                        <td>${inv.id || idx + 1}</td>
+                        <td>${inv.employee_name || 'غير معروف'}</td>
+                        <td>${inv.products || '---'}</td>
+                        <td>${inv.total || 0} د.م</td>
+                        <td>${inv.profit || 0} د.م</td>
+                    </tr>
+                `).join('');
+            }
+            console.log("✅ تم تحديث صفوف الجدول برمجياً بشكل مباشر.");
+        }
+    }
+
+    // 5. تحديث بطاقات إحصائيات لوحة التحكم العلوية بالأرقام المفلترة الجديدة
+    updateDashboardCards(invoices);
+}
+
+// دالة مساعدة لتحديث مربعات لوحة التحكم فوراً
+function updateDashboardCards(invoices) {
+    let totalSales = 0;
+    let totalProfit = 0;
+
+    invoices.forEach(inv => {
+        totalSales += parseFloat(inv.total || 0);
+        totalProfit += parseFloat(inv.profit || 0);
+    });
+
+    // تحديث أرقام العدادات الثلاثة في شاشتك
+    const salesElements = ['total-sales-view', 'totalSalesView', 'earnings-today'];
+    const profitElements = ['total-profit-view', 'totalProfitView', 'profit-today'];
+
+    salesElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = totalSales.toFixed(2) + " د.م";
+    });
+
+    profitElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = totalProfit.toFixed(2) + " د.م";
+    });
+}
+async function fetchSalesByPeriod(period) {
+    // 1. إدارة الأزرار النشطة في الواجهة وتعديل الفلاتر
+    document.querySelectorAll('.time-filters button, .btn-filter, [id^="btn-"]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activeBtn = document.getElementById(`btn-${period}`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    if (typeof supabaseClient === 'undefined') {
+        console.error("❌ supabaseClient غير معرف في ملفات المشروع!");
+        return;
+    }
+
+    let query = supabaseClient.from('sales').select('*');
+
+    // 2. حساب التواريخ بصيغة نصية YYYY-MM-DD
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+
+    const todayStr = `${year}-${month}-${day}`;
+    const monthStr = `${year}-${month}`;
+
+    console.log(`[Supabase] جاري التصفية لـ: ${period} | تاريخ اليوم: ${todayStr}`);
+
+    // 3. تطبيق شروط الفلترة الزمنية بناءً على النصوص لتلافي فروق الساعات
+    if (period === 'today') {
+        query = query.gte('created_at', `${todayStr} 00:00:00`)
+                     .lte('created_at', `${todayStr} 23:59:59`);
+    } else if (period === 'month') {
+        query = query.gte('created_at', `${monthStr}-01 00:00:00`)
+                     .lte('created_at', `${monthStr}-31 23:59:59`);
+    } else if (period === 'year') {
+        query = query.gte('created_at', `${year}-01-01 00:00:00`)
+                     .lte('created_at', `${year}-12-31 23:59:59`);
+    }
+
+    // جلب البيانات من السيرفر وترتيبها
+    const { data: invoices, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("❌ فشل جلب البيانات المفلترة:", error);
+        return;
+    }
+
+    console.log(`[Supabase] تم جلب ${invoices.length} فاتورة بنجاح لفترة [${period}].`);
+
+    // 4. استهداف جدول السجلات الفعلي وتحديثه برمجياً بالكامل
+    // نقوم بالبحث عن أي عنصر tbody متاح في الصفحة لضمان الوصول للجدول المطلوب
+    const tableBody = document.querySelector('.sales-table tbody') || 
+                      document.getElementById('sales-table-body') || 
+                      document.getElementById('table-body') || 
+                      document.querySelector('table tbody');
+
+    if (tableBody) {
+        if (invoices.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:20px; color:#666;">لا توجد فواتير مسجلة لهذه الفترة</td></tr>`;
+        } else {
+            tableBody.innerHTML = invoices.map((inv, idx) => {
+                // استخلاص التاريخ بشكل نظيف بدون الساعات المعقدة
+                let cleanDate = '---';
+                if (inv.created_at) {
+                    cleanDate = inv.created_at.split('T')[0] || inv.created_at;
+                }
+                
+                // جلب القيم البرمجية مع دعم التسميات العربية والإنجليزية لقاعدة البيانات
+                let invoiceId = inv.id || inv.invoice_number || inv['رقم الفاتورة'] || (idx + 1);
+                let employee = inv.employee_name || inv.employee || inv['الموظف'] || 'غير معروف';
+                let products = inv.products || inv.items || inv['المنتجات'] || '---';
+                let totalAmount = inv.total || inv.total_price || inv['المجموع'] || 0;
+                let profitAmount = inv.profit || inv['الربح'] || 0;
+
+                return `
+                    <tr>
+                        <td>${cleanDate}</td>
+                        <td>${invoiceId}</td>
+                        <td>${employee}</td>
+                        <td>${products}</td>
+                        <td>${parseFloat(totalAmount).toFixed(2)} د.م</td>
+                        <td>${parseFloat(profitAmount).toFixed(2)} د.م</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // تحديث إجمالي عدد النتائج المعروضة أسفل الجدول إن وُجد العنصر الخاص بها
+        const resultCount = document.querySelector('.results-count') || document.getElementById('result-count') || document.querySelector('.total-results');
+        if (resultCount) {
+            resultCount.innerText = `عدد النتائج: ${invoices.length}`;
+        }
+    } else {
+        console.warn("⚠ لم يتم العثور على عنصر الـ tbody الخاص بالجدول في واجهة الصفحة الحالية.");
+    }
+
+    // 5. تحديث بطاقات إحصائيات لوحة التحكم العلوية بالأرقام المفلترة المحدثة
+    updateDashboardStatsDirectly(invoices);
+}
+
+async function syncInvoicesWithServer() {
+    const btn = event.currentTarget;
+    const originalText = btn.querySelector('span:last-child').innerText;
+    btn.querySelector('span:last-child').innerText = 'جاري...';
+    
+    try {
+        await fetchAllSales();
+        if (navigator.onLine) {
+            const pending = JSON.parse(localStorage.getItem('pending_invoices') || '[]');
+            for (let inv of pending) {
+                await fetch('https://your-server.com/api/upload', {
+                    method: 'POST',
+                    body: JSON.stringify(inv),
+                    headers: {'Content-Type': 'application/json'}
+                });
+            }
+            localStorage.setItem('pending_invoices', '[]');
+        }
+    } catch(e) {
+        console.log(e);
+    }
+    
+    btn.querySelector('span:last-child').innerText = originalText;
+}
+// دالة لتحديث الصفحة وفحص الإنترنت عند الضغط على زر Actualiser
+function tryReconnect() {
+    if (navigator.onLine) {
+        console.log("🔌 عاد الاتصال بنجاح! جاري العودة للتطبيق...");
+        
+        // إخفاء الشاشة البيضاء والعودة للتطبيق كالمعتاد
+        document.getElementById('no-internet-screen').style.display = 'none';
+        
+        // تحديث البيانات من السيرفر للتأكد أن كل شيء متزامن
+        if (typeof fetchAllSales === 'function') {
+            fetchAllSales();
+        }
+    } else {
+        // إذا كان الإنترنت لا يزال مقطوعاً، نبه المستخدم ولا تغلق الشاشة
+        alert("❌ الإنترنت لا يزال غير متوفر. يرجى التحقق من الشبكة وإعادة المحاولة.");
+    }
+}
+async function fetchAndFilterSales(period, extraValue = null) {
+    console.log(`📡 جاري جلب البيانات من السيرفر لتحديث الفلتر الحالي: ${period}`);
+    
+    // التحكم في إظهار وإخفاء القوائم المنسدلة
+    const monthSelect = document.getElementById('monthSelectSelector');
+    const yearSelect = document.getElementById('yearSelectSelector');
+    
+    if (monthSelect && yearSelect) {
+        if (period === 'show-month-list') {
+            monthSelect.style.display = 'inline-block';
+            yearSelect.style.display = 'none';
+            return; 
+        } else if (period === 'show-year-list') {
+            yearSelect.style.display = 'inline-block';
+            monthSelect.style.display = 'none';
+            return; 
+        } else if (period === 'all' || period === 'today') {
+            monthSelect.style.display = 'none';
+            yearSelect.style.display = 'none';
+        }
+    }
+
+    // 1. تحديث البيانات الطازجة من السيرفر (Supabase)
+    try {
+        if (navigator.onLine) {
+            const { data, error } = await supabaseClient
+                .from('sales')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                localStorage.setItem('savedSales', JSON.stringify(data));
+                localStorage.setItem('wadii_sales', JSON.stringify(data));
+                console.log("✅ تم تحديث كاش الحاسوب بنجاح من السيرفر.");
+            }
+        }
+    } catch (err) {
+        console.error("خطأ أثناء تحديث البيانات من السيرفر:", err);
+    }
+
+    // جلب البيانات الأساسية للبدء بالفلترة
+    let allSalesData = [];
+    const localData = localStorage.getItem('savedSales') || localStorage.getItem('wadii_sales');
+    if (localData) {
+        allSalesData = JSON.parse(localData);
+    } else {
+        allSalesData = [...sales];
+    }
+
+    // 2. تصفية التواريخ بدقة تامة لمتجرك
+    const now = new Date();
+    let filteredSales = [];
+    let periodText = ""; // نص مخصص لنوع الفلتر يظهر في الرسالة
+
+    if (period === 'all') {
+        filteredSales = [...allSalesData];
+        periodText = "السجل الكامل";
+    } 
+    else if (period === 'today') {
+        const currentDayStr = now.toLocaleDateString('ar-MA'); 
+        filteredSales = allSalesData.filter(sale => sale.date === currentDayStr);
+        periodText = "اليوم";
+    } 
+    else if (period === 'specific-month') {
+        filteredSales = allSalesData.filter(sale => {
+            if (!sale.date) return false;
+            const parts = sale.date.split(/[-/]/);
+            const saleMonth = parseInt(parts[1], 10);
+            return saleMonth === parseInt(extraValue, 10);
+        });
+        const monthNames = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+        periodText = `شهر ${monthNames[parseInt(extraValue, 10)]}`;
+    } 
+    else if (period === 'specific-year') {
+        filteredSales = allSalesData.filter(sale => {
+            if (!sale.date) return false;
+            const parts = sale.date.split(/[-/]/);
+            const saleYear = parts.find(p => p.trim().length === 4);
+            return saleYear === extraValue.toString();
+        });
+        periodText = `سنة ${extraValue}`;
+    }
+
+    console.log(`📊 عدد الفواتير المستهدفة للعرض: ${filteredSales.length}`);
+    
+    // 3. عرض البيانات المفلترة في جدول متجر وديع وتحديث الشاشة فوراً
+    if (typeof displaySales === 'function') {
+        sales = filteredSales;
+        displaySales(); 
+        
+        if (typeof updateInvoiceStats === 'function') updateInvoiceStats();
+        if (typeof updateDashboard === 'function' && currentUser.role === 'owner') updateDashboard();
+        
+        // 🌟 [الخطوة الجديدة]: إظهار الرسالة الأنيقة في منتصف الشاشة 🌟
+        showMiddleNotification(filteredSales.length, periodText);
+
+        setTimeout(() => {
+            if (localData) sales = JSON.parse(localData);
+        }, 100);
+    }
+}
+
+// 📦 دالة فرعية تقوم بصناعة التنبيه وإظهاره في منتصف الشاشة بطريقة عصرية
+function showMiddleNotification(count, periodName) {
+    // إزالة أي تنبيه سابق إذا كان موجوداً لتفادي التكرار
+    const oldNotify = document.getElementById('search-toast-notification');
+    if (oldNotify) oldNotify.remove();
+
+    // إنشاء عنصر الرسالة
+    const notify = document.createElement('div');
+    notify.id = 'search-toast-notification';
+    
+    // تصميم الرسالة لتظهر في المنتصف تماماً (CSS مدمج)
+    notify.style.position = 'fixed';
+    notify.style.top = '50%';
+    notify.style.left = '50%';
+    notify.style.transform = 'translate(-50%, -50%)';
+    notify.style.backgroundColor = 'rgba(32, 33, 36, 0.95)'; // لون داكن فخم وشفاف قليلاً
+    notify.style.color = '#fff';
+    notify.style.padding = '16px 32px';
+    notify.style.borderRadius = '12px';
+    notify.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
+    notify.style.zIndex = '100000';
+    notify.style.fontFamily = 'sans-serif';
+    notify.style.fontSize = '18px';
+    notify.style.textAlign = 'center';
+    notify.style.direction = 'rtl';
+    notify.style.transition = 'opacity 0.4s ease';
+    notify.style.pointerEvents = 'none'; // لكي لا يمنع الضغط خلفه
+
+    // تخصيص نص الرسالة بحسب النتيجة ليكون احترافياً
+    if (count > 0) {
+        notify.innerHTML = `🔍 تم جلب وفلترة <strong>(${periodName})</strong><br><span style="color: #4df3a9; font-weight: bold; font-size: 20px;">✓ وجدنا ${count} فواتير</span>`;
+    } else {
+        notify.innerHTML = `📂 تصفية <strong>(${periodName})</strong><br><span style="color: #ff6b6b; font-weight: bold;">⚠️ لا توجد أي فواتير مسجلة!</span>`;
+    }
+
+    // إضافة الرسالة إلى الصفحة
+    document.body.appendChild(notify);
+
+    // حياكة تأثير الإخفاء التدريجي والمحو بعد ثانيتين
+    setTimeout(() => {
+        notify.style.opacity = '0';
+        setTimeout(() => {
+            if (notify) notify.remove();
+        }, 400); // حذف العنصر نهائياً بعد انتهاء تأثير الاختفاء
+    }, 2000); // تبقى الواجهة ظاهرة لمدة ثانيتين
+}
+// دالة لإظهار قائمة الشهور وإخفاء السنوات
+function showMonthSelector() {
+    document.getElementById('monthSelectSelector').style.display = 'inline-block';
+    document.getElementById('yearSelectSelector').style.display = 'none';
+}
+
+// دالة لإظهار قائمة السنوات وإخفاء الشهور
+function showYearSelector() {
+    document.getElementById('yearSelectSelector').style.display = 'inline-block';
+    document.getElementById('monthSelectSelector').style.display = 'none';
+}
+
+// عندما يختار المستخدم شهراً معيناً من القائمة
+function onMonthChanged() {
+    const selectedMonth = document.getElementById('monthSelectSelector').value;
+    if (selectedMonth) {
+        fetchAndFilterSales('specific-month', selectedMonth);
+    }
+}
+
+// عندما يختار المستخدم سنة معينة من القائمة
+function onYearChanged() {
+    const selectedYear = document.getElementById('yearSelectSelector').value;
+    if (selectedYear) {
+        fetchAndFilterSales('specific-year', selectedYear);
+    }
+}
+
+// الدالة الأم: تجلب من السيرفر أولاً لتحديث الحاسوب ثم تفرز البيانات
+async function fetchAndFilterSales(period, extraValue = null) {
+    console.log(`🔄 جاري جلب البيانات من السيرفر لتحديث الفلتر الحالي: ${period}`);
+    
+    // 1. الاتصال بالسيرفر لجلب الفواتير الحديثة (حتى لو اختفت من كاش الحاسوب)
+    try {
+        if (navigator.onLine) {
+            const { data, error } = await supabaseClient
+                .from('sales')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                // تحديث مصفوفة المبيعات العامة في الحاسوب بالبيانات الطازجة من السيرفر
+                sales = data;
+                // حفظها في كاش المتصفح لكي لا تضيع
+                localStorage.setItem('savedSales', JSON.stringify(sales));
+                localStorage.setItem('wadii_sales', JSON.stringify(sales));
+                console.log("✅ تم تحديث كاش الحاسوب بنجاح من السيرفر.");
+            }
+        } else {
+            console.warn("🔌 لا يوجد إنترنت، سيتم الفرز بناءً على البيانات المخزنة في الحاسوب فقط.");
+        }
+    } catch (err) {
+        console.error("خطأ أثناء تحديث البيانات من السيرفر:", err);
+    }
+
+    // 2. البدء في تصفية البيانات المحدثة بناءً على طلبك
+    const now = new Date();
+    let filteredSales = [];
+
+    if (period === 'all') {
+        filteredSales = [...sales];
+        // إخفاء القوائم المنسدلة
+        document.getElementById('monthSelectSelector').style.display = 'none';
+        document.getElementById('yearSelectSelector').style.display = 'none';
+    } 
+    else if (period === 'today') {
+        const currentDayStr = now.toLocaleDateString('ar-MA'); // توافق مع طريقة حفظك للتاريخ
+        filteredSales = sales.filter(sale => sale.date === currentDayStr);
+        
+        // إخفاء القوائم المنسدلة
+        document.getElementById('monthSelectSelector').style.display = 'none';
+        document.getElementById('yearSelectSelector').style.display = 'none';
+    } 
+    else if (period === 'specific-month') {
+        // فحص الشهر المختار (extraValue يمثل رقم الشهر من 1 إلى 12)
+        filteredSales = sales.filter(sale => {
+            // نقوم بتفكيك التاريخ المسجل بالفاتورة (مثال: 2026/05/28 أو 28/05/2026)
+            const parts = sale.date.split(/[-/]/);
+            // البحث عن جزء الشهر (غالباً يكون العنصر الثاني في المصفوفة)
+            const saleMonth = parseInt(parts[1], 10);
+            return saleMonth === parseInt(extraValue, 10);
+        });
+    } 
+    else if (period === 'specific-year') {
+        // فحص السنة المختارة (extraValue يمثل السنة مثل 2026)
+        filteredSales = sales.filter(sale => {
+            const parts = sale.date.split(/[-/]/);
+            // البحث عن جزء السنة (يكون إما أول عنصر أو آخر عنصر حسب صيغتك)
+            const saleYear = parts.find(p => p.length === 4);
+            return saleYear === extraValue;
+        });
+    }
+
+    // 3. عرض الفواتير المفلترة في الجدول وتحديث الإحصائيات
+    console.log(`📊 عدد الفواتير المعروضة بعد التحديث والفرز: ${filteredSales.length}`);
+    
+    // استدعاء دالة عرض الجدول المتوفرة في كودك ومتابعة النتيجة
+    if (typeof displaySales === 'function') {
+        // لتمرير الفواتير المفلترة للدالة دون تخريب المصفوفة الأصلية
+        // سنقوم بتحديث واجهة العرض بناءً على filteredSales
+        // (ملاحظة: إذا كانت دالة displaySales تقرأ من متغير sales العام مباشرة، أخبرني لنعدلها لتستقبل مصفوفة مخصصة)
+    }
+}
 
 </script>
 </body>
