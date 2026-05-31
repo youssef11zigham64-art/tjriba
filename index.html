@@ -498,7 +498,35 @@
         .card { box-shadow: none !important; padding: 0 !important; }
         th, td { border: 1px solid #000 !important; }
     }
-    </style>
+  
+.btn-filter {
+    display: flex;
+    flex-direction: column; /* الأيقونة فوق النص */
+    align-items: center;
+    justify-content: center;
+    width: 80px; 
+    padding: 10px;
+    background-color: #ffffff;
+    border: 1px solid #d1d9e6;
+    border-radius: 15px; /* زوايا دائرية */
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+    font-size: 13px;
+    color: #333;
+}
+
+.btn-filter:hover {
+    border-color: #007bff;
+    background-color: #f8fbff;
+}
+
+.btn-filter .icon {
+    font-size: 18px;
+    margin-bottom: 5px;
+}
+</style>
+   </style>
 </head>
 <body>
 <div id="no-internet-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: white; z-index: 99999; font-family: sans-serif; padding: 10% 15%; box-sizing: border-box; color: #333;">
@@ -590,10 +618,7 @@
     <div class="nav-item" onclick="showSection('add-product')"><i class="fas fa-plus"></i> إضافة منتج</div>
     <div class="nav-item" onclick="showSection('new-invoice')"><i class="fas fa-file-invoice"></i> فاتورة بيع</div>
     <div class="nav-item" onclick="showSection('sales-history')"><i class="fas fa-history"></i> السجل</div>
-       <div class="sidebar-item" onclick="fetchAllSales()" style="cursor: pointer; padding: 10px; margin: 5px; border-radius: 8px; background: rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px;">
-    <span>🔄</span>
-    <span style="font-size: 14px;">تحديث السيرفر</span>
-</div>
+
     <!-- أزرار نظام الديون -->
 <div style="margin: 20px 15px; display: flex; flex-direction: column; gap: 10px;">
     <button id="btnAddDebt" style="background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;">
@@ -794,9 +819,8 @@
             <button onclick="processAdminSearch()" style="background:#2196F3; color:white; border:none; border-radius:5px; padding:8px 15px; cursor:pointer;">🔍 بحث</button>
             <button onclick="showAllSales()" style="background:#9C27B0; color:white; border:none; border-radius:5px; padding:8px 15px; cursor:pointer;">📋 كل المبيعات</button>
             <button onclick="showMonthlyEmployeeProfits()" style="background:#FF9800; color:white; border:none; border-radius:5px; padding:8px 15px; cursor:pointer;">💰 أرباح الموظفين</button>
-            <button onclick="resetSearch()" style="background:#607D8B; color:white; border:none; border-radius:5px; padding:8px 15px; cursor:pointer;">🗑️ مسح</button>
+            <button onclick="if(checkAdminLock()) { resetSearch(); }" style="background:#f44336; color:white; border:none; border-radius:5px; padding:8px 15px; cursor:pointer;">🗑️ مسح</button>
         </div>
-        
         <!-- مكان عرض النتائج -->
         <div id="resultsArea" style="margin-top:20px; overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse;" border="1">
@@ -818,11 +842,29 @@
                 <button class="filter-btn" onclick="filterSalesByPeriod('week')">📆 هذا الأسبوع</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('month')">🗓️ هذا الشهر</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('year')">📅 هذه السنة</button>
-<div class="filter-buttons-container" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-    <button onclick="fetchAndFilterSales('today')" class="btn-filter">اليوم</button>
-    <button onclick="showMonthSelector()" class="btn-filter">بالشهر</button>
-    <button onclick="showYearSelector()" class="btn-filter">بالسنة</button>
-    <button onclick="fetchAndFilterSales('all')" class="btn-filter">الكل</button>
+<div class="filter-buttons-container" style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: center;">
+    
+    <button onclick="fetchAndFilterSales('all')" class="btn-filter">
+        <div class="icon">📅</div>
+        <span>الكل</span>
+    </button>
+    
+    <button onclick="showYearSelector()" class="btn-filter">
+        <div class="icon">📅</div>
+        <span>السنة</span>
+    </button>
+    
+    <button onclick="showMonthSelector()" class="btn-filter">
+        <div class="icon">📅</div>
+        <span>الشهر</span>
+    </button>
+    
+    <button onclick="fetchAndFilterSales('today')" class="btn-filter">
+        <div class="icon">📅</div>
+        <span>اليوم</span>
+    </button>
+
+</div>
 
     <select id="monthSelectSelector" onchange="onMonthChanged()" style="display: none; padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-family: sans-serif;">
         <option value="">اختر الشهر...</option>
@@ -847,7 +889,6 @@
         <option value="2027">2027</option>
     </select>
 </div>
-            </div>            <button class="btn sync-btn" onclick="syncToFirebaseNow()"><i class="fas fa-cloud-upload-alt"></i> مزامنة يدوية</button>
             <div style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;">
              <div style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;"></div>
             </div>
@@ -1423,92 +1464,6 @@ let isSyncing = false;
 let productsUnsubscribe = null;
 let salesUnsubscribe = null;
 let saveTimeout = null;
-
-
-
-
-// =============== الاستماع المباشر للتحديثات من Firebase ===============
-function startRealtimeFirebaseSync() {
-    try {
-        const db = window.db;
-        const collectionFn = window.collection;
-        const onSnapshotFn = window.onSnapshot;
-        
-    if (!db || !onSnapshotFn) {
-            console.warn("⚠️ Firebase onSnapshot غير متاح");
-            return;
-        }
-        
-        // إلغاء الاشتراكات السابقة إن وجدت
-        if (productsUnsubscribe) productsUnsubscribe();
-        if (salesUnsubscribe) salesUnsubscribe();
-        
-        console.log("🔄 بدء الاستماع المباشر لتحديثات Firebase...");
-        
-        // الاستماع لتغييرات المنتجات
-        productsUnsubscribe = onSnapshotFn(collectionFn(db, "products"), (snapshot) => {
-            const newProducts = snapshot.docs.map(doc => doc.data());
-            // تنظيف البيانات
-            const cleanedProducts = newProducts.map(p => {
-                delete p.firebaseId;
-                return p;
-            });
-            
-            if (cleanedProducts.length > 0) {
-                // تجنب التحديث إذا كانت نفس البيانات
-                const currentIds = JSON.stringify(products.map(p => p.id).sort());
-                const newIds = JSON.stringify(cleanedProducts.map(p => p.id).sort());
-                
-                if (currentIds !== newIds || JSON.stringify(products) !== JSON.stringify(cleanedProducts)) {
-                    products = cleanedProducts;
-                    localStorage.setItem('wadii_products', JSON.stringify(products));
-                    console.log("🔄 تحديث تلقائي: تم تغيير المنتجات من موظف آخر");
-                    if (currentUser) {
-                        displayProducts();
-                        updateProductSelect();
-                        if (currentUser.role === 'owner') updateDashboard();
-                    }
-                }
-            }
-        }, (error) => {
-            console.error("خطأ في الاستماع للمنتجات:", error);
-        });
-        
-        // الاستماع لتغييرات الفواتير
-        salesUnsubscribe = onSnapshotFn(collectionFn(db, "sales"), (snapshot) => {
-            const newSales = snapshot.docs.map(doc => doc.data());
-            const cleanedSales = newSales.map(s => {
-                delete s.firebaseId;
-                return s;
-            });
-            
-            if (cleanedSales.length > 0) {
-                const currentIds = JSON.stringify(sales.map(s => s.id).sort());
-                const newIds = JSON.stringify(cleanedSales.map(s => s.id).sort());
-                
-                if (currentIds !== newIds || JSON.stringify(sales) !== JSON.stringify(cleanedSales)) {
-                    sales = cleanedSales;
-                    localStorage.setItem('wadii_sales', JSON.stringify(sales));
-                    console.log("🔄 تحديث تلقائي: تم تغيير الفواتير من موظف آخر");
-                    if (currentUser) {
-                        displaySales();
-                        updateInvoiceStats();
-                        if (currentUser.role === 'owner') {
-                            updateDashboard();
-                            displayRecentSales();
-                        }
-                    }
-                }
-            }
-        }, (error) => {
-            console.error("خطأ في الاستماع للفواتير:", error);
-        });
-        
-        console.log("✅ بدء الاستماع المباشر لتحديثات Firebase بنجاح");
-    } catch (error) {
-        console.error("❌ خطأ في بدء الاستماع المباشر:", error);
-    }
-}
 
 
 
@@ -3262,50 +3217,7 @@ function setupRealtime() {
     )
     .subscribe();
 }
-async function fetchAllSales() {
-    console.log("⏳ جاري جلب البيانات من السيرفر باستخدام supabaseClient...");
-
-    try {
-        // 1. جلب الفواتير من جدول sales وترتيبها من الأحدث للأقدم
-        const { data, error } = await supabaseClient
-            .from('sales')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        // 2. التحقق من وجود خطأ أثناء الاتصال بالسيرفر
-        if (error) {
-            console.error("❌ خطأ في السيرفر:", error.message);
-            alert("فشل جلب البيانات: " + error.message);
-            return;
-        }
-
-        // 3. إذا وصلت البيانات بنجاح
-        if (data) {
-            console.log("✅ تم جلب البيانات بنجاح:", data);
-            
-            // تحديث مصفوفة المبيعات المحلية بالبيانات القادمة من السيرفر
-            sales = data;
-
-            // 4. حفظ الفواتير في المتصفح لضمان عدم اختفائها عند التحديث
-            localStorage.setItem('savedSales', JSON.stringify(sales));
-            localStorage.setItem('wadii_sales', JSON.stringify(sales)); // احتياطاً حسب التسمية لديك
-
-            // 5. تحديث واجهة المستخدم والجدول إذا كانت الدالة موجودة
-            if (typeof renderSalesTable === 'function') {
-                renderSalesTable(sales);
-            } else if (typeof updateSalesTable === 'function') {
-                updateSalesTable();
-            }
-
-            console.log(`💾 تم حفظ البيانات في المتصفح وتحديث السجل: ${sales.length} فاتورة.`);
-            alert("تم تحديث البيانات من السيرفر بنجاح!");
-        }
-
-    } catch (err) {
-        console.error("❌ خطأ غير متوقع:", err);
-        alert("حدث خطأ أثناء الاتصال بالشبكة، تأكد من إعدادات الربط.");
-    }
-}
+   
 async function fetchSalesByPeriod(period) {
     // 1. تحديث شكل الأزرار النشطة في الواجهة
     document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
@@ -3802,7 +3714,21 @@ async function fetchAndFilterSales(period, extraValue = null) {
         // (ملاحظة: إذا كانت دالة displaySales تقرأ من متغير sales العام مباشرة، أخبرني لنعدلها لتستقبل مصفوفة مخصصة)
     }
 }
-
+function checkAdminLock() {
+    // كلمة السر الخاصة بك
+    const adminPassword = "123"; 
+    
+    // طلب كلمة السر من المستخدم
+    let userInput = prompt("⚠️ هذه العملية خاصة بالمدير فقط. يرجى إدخال كلمة سر المدير:");
+    
+    // التحقق من صحة كلمة السر
+    if (userInput === adminPassword) {
+        return true; // القفل مفتوح
+    } else {
+        alert("❌ كلمة السر خاطئة! لا يمكنك القيام بهذه العملية.");
+        return false; // القفل مغلق
+    }
+}
 </script>
 </body>
 </html>
