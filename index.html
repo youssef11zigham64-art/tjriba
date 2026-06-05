@@ -616,8 +616,8 @@
     <div class="nav-item owner-only" onclick="showSection('dashboard')"><i class="fas fa-chart-line"></i> لوحة التحكم</div>
     <div class="nav-item" onclick="showSection('products-list')"><i class="fas fa-boxes"></i> المخزن</div>
     <div class="nav-item" onclick="showSection('add-product')"><i class="fas fa-plus"></i> إضافة منتج</div>
-    <div class="nav-item" onclick="showSection('new-invoice')"><i class="fas fa-file-invoice"></i> فاتورة بيع</div>
-    <div class="nav-item" onclick="showSection('sales-history')"><i class="fas fa-history"></i> السجل</div>
+    <div class="nav-item" onclick="showSection('new-invoice')"><i class="fas fa-file-invoice"></i> انشاء فاتورة</div>
+    <div class="nav-item" onclick="showSection('sales-history')"><i class="fas fa-history"></i> مجموع الفواتير</div>
 
     <!-- أزرار نظام الديون -->
 <div style="margin: 20px 15px; display: flex; flex-direction: column; gap: 10px;">
@@ -699,7 +699,28 @@
         <i class="fas fa-chart-line"></i>
         📅 تقرير سنوي (جميع السنوات)
     </button>
-    
+<button onclick="addRow()" style="margin-bottom: 15px; padding: 12px 20px; font-size: 16px;">+ إضافة مورد جديد</button>
+
+<table id="supplierTable" style="width: 100%; border-collapse: collapse; direction: rtl; border: 1px solid #ddd; font-size: 16px;">
+    <thead>
+        <tr style="background-color: #f4f4f4;">
+            <th style="padding: 12px; border: 1px solid #ddd;">التاريخ</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">اسم المورد</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">اسم المنتج</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">عدد الكوليات</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">المنتجات/كولية</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">ثمن الكولية</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">ثمن المنتج</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">المدفوع</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">الباقي</th>
+            <th style="padding: 12px; border: 1px solid #ddd;">إجراء</th>
+        </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+</table>
+
+
+
 </div>
         <div class="card" style="display: none;">
             <h4><i class="fas fa-clock"></i> آخر المبيعات</h4>
@@ -842,17 +863,18 @@
                 <button class="filter-btn" onclick="filterSalesByPeriod('week')">📆 هذا الأسبوع</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('month')">🗓️ هذا الشهر</button>
                 <button class="filter-btn" onclick="filterSalesByPeriod('year')">📅 هذه السنة</button>
-<div class="filter-buttons-container" style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: center;">
-    
-    <button onclick="fetchAndFilterSales('all')" class="btn-filter">
-        <div class="icon">📅</div>
-        <span>الكل</span>
-    </button>
-    
-    <button onclick="showYearSelector()" class="btn-filter">
-        <div class="icon">📅</div>
-        <span>السنة</span>
-    </button>
+</div> 
+                <div class="filter-buttons-container" style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: center;">
+   
+<button onclick="checkPassword('all')" class="btn-filter">
+    <div class="icon">📅</div>
+    <span>الكل</span>
+</button>
+
+<button onclick="checkPassword('year')" class="btn-filter">
+    <div class="icon">📅</div>
+    <span>السنة</span>
+</button>
     
     <button onclick="showMonthSelector()" class="btn-filter">
         <div class="icon">📅</div>
@@ -1861,13 +1883,19 @@ function addProduct() {
     if (currentUser.role === 'owner') updateDashboard();
     alert('✅ تم إضافة المنتج بنجاح');
 }
-
 function filterProducts() {
-    const search = document.getElementById('searchProduct')?.value.toLowerCase() || '';
+    // التعديل هنا: أضفنا .value.toLowerCase()
+    const search = document.getElementById('searchProduct').value.toLowerCase();
+    
     const rows = document.querySelectorAll('#productsBody tr');
     rows.forEach(row => {
-        const name = row.cells[1]?.textContent.toLowerCase() || '';
-        row.style.display = name.includes(search) ? '' : 'none';
+        // نأخذ النص من الخلية (العمود الثاني هو index 1)
+        const nameCell = row.cells[1];
+        if (nameCell) {
+            const name = nameCell.textContent.toLowerCase();
+            // المقارنة الآن ستعمل بشكل صحيح
+            row.style.display = name.includes(search) ? '' : 'none';
+        }
     });
 }
 
@@ -2814,23 +2842,28 @@ document.getElementById('imagePreview').style.display = 'none';
 document.getElementById('previewOverlay').style.display = 'none';																									
 }																									
 																									
-// دالة تصفية المنتجات																									
-function filterProducts() {																									
-const pTerm = document.getElementById('product-search').value.toLowerCase();																									
-const sTerm = document.getElementById('supplier-search').value.toLowerCase();																									
-																									
-document.querySelectorAll('#products-body tr').forEach(row => {																									
-const productCell = row.cells[1];																									
-const supplierCell = row.cells[2];																									
-																									
-if (productCell && supplierCell) {																									
-const pName = productCell.textContent.toLowerCase().replace(/\(منتهى\)/g, '').trim();																									
-const sName = supplierCell.textContent.toLowerCase();																									
-																									
-row.style.display = (pName.includes(pTerm) && sName.includes(sTerm)) ? '' : 'none';																									
-}																									
-});																									
-}																									
+function filterProducts() {
+    // 1. نبحث عن العنصر أولاً
+    const searchElement = document.getElementById('searchProduct');
+    
+    // 2. إذا لم يجد العنصر، نخرج من الدالة فوراً ولا نكمل (بذلك نمنع الخطأ)
+    if (!searchElement) {
+        console.log("عنصر البحث غير موجود في هذه الصفحة.");
+        return; 
+    }
+
+    // 3. إذا وجد العنصر، نكمل العمل بشكل طبيعي
+    const search = searchElement.value.toLowerCase();
+    const rows = document.querySelectorAll('#productsBody tr');
+    
+    rows.forEach(row => {
+        const nameCell = row.cells[1];
+        if (nameCell) {
+            const name = nameCell.textContent.toLowerCase();
+            row.style.display = name.includes(search) ? '' : 'none';
+        }
+    });
+}																								
 	
 
 
@@ -3642,7 +3675,9 @@ function onYearChanged() {
 // الدالة الأم: تجلب من السيرفر أولاً لتحديث الحاسوب ثم تفرز البيانات
 async function fetchAndFilterSales(period, extraValue = null) {
     console.log(`🔄 جاري جلب البيانات من السيرفر لتحديث الفلتر الحالي: ${period}`);
-    
+  
+        alert("   لفد تم جلب جميع الفواتير اليوم بنجاح !");
+  
     // 1. الاتصال بالسيرفر لجلب الفواتير الحديثة (حتى لو اختفت من كاش الحاسوب)
     try {
         if (navigator.onLine) {
@@ -3727,6 +3762,86 @@ function checkAdminLock() {
     } else {
         alert("❌ كلمة السر خاطئة! لا يمكنك القيام بهذه العملية.");
         return false; // القفل مغلق
+    }
+}
+
+    const tableBody = document.getElementById('tableBody');
+
+    // إضافة صف جديد مع تنسيق أكبر
+    function addRow(data = {date: new Date().toLocaleDateString('fr-FR'), name: '', product: '', qty: '', itemsPerBox: '', pricePerBox: '', itemPrice: '', paid: ''}) {
+        let row = document.createElement('tr');
+        row.innerHTML = `
+            <td style="padding: 8px;"><input type="text" value="${data.date}" disabled style="width: 110px; padding: 8px;"></td>
+            <td style="padding: 8px;"><input type="text" value="${data.name}" class="name" oninput="saveData()" style="width: 130px; padding: 8px;"></td>
+            <td style="padding:8px;"><input type="text" value="${data.product}" class="product" oninput="saveData()" style="width: 170px; padding: 8px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data.qty}" class="qty" oninput="saveData()" style="width: 100px; padding: 8px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data.itemsPerBox}" class="itemsPerBox" oninput="saveData()" style="width: 100px; padding: 8px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data.pricePerBox}" class="pricePerBox" oninput="saveData()" style="width: 100px; padding: 8px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data.itemPrice}" class="itemPrice" oninput="saveData()" style="width: 100px; padding: 8px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data.paid}" class="paid" oninput="saveData()" style="width: 100px; padding: 8px;"></td>
+            <td class="remaining" style="font-weight: bold; padding: 12px; font-size: 18px;">0</td>
+            <td style="padding: 8px;"><button onclick="deleteRow(this)" style="color: white; background-color: red; padding: 8px; border: none; cursor: pointer;">حذف</button></td>
+        `;
+        tableBody.appendChild(row);
+        calculateAll();
+    }
+
+    // دالة الحساب
+    function calculateAll() {
+        document.querySelectorAll('#tableBody tr').forEach(row => {
+            let qty = parseFloat(row.querySelector('.qty').value) || 0;
+            let pricePerBox = parseFloat(row.querySelector('.pricePerBox').value) || 0;
+            let paid = parseFloat(row.querySelector('.paid').value) || 0;
+            
+            let remaining = (qty * pricePerBox) - paid;
+            row.querySelector('.remaining').innerText = remaining;
+        });
+    }
+
+    function deleteRow(btn) {
+        btn.closest('tr').remove();
+        saveData();
+    }
+
+    function saveData() {
+        let data = [];
+        document.querySelectorAll('#tableBody tr').forEach(row => {
+            data.push({
+                date: row.cells[0].querySelector('input').value,
+                name: row.querySelector('.name').value,
+                product: row.querySelector('.product').value,
+                qty: row.querySelector('.qty').value,
+                itemsPerBox: row.querySelector('.itemsPerBox').value,
+                pricePerBox: row.querySelector('.pricePerBox').value,
+                itemPrice: row.querySelector('.itemPrice').value,
+                paid: row.querySelector('.paid').value
+            });
+        });
+        localStorage.setItem('mySuppliers', JSON.stringify(data));
+        calculateAll();
+    }
+
+    window.onload = () => {
+        let saved = JSON.parse(localStorage.getItem('mySuppliers'));
+        if (saved && saved.length > 0) {
+            saved.forEach(item => addRow(item));
+        } else {
+            addRow();
+        }
+    };
+function checkPassword(type) {
+    const password = "22098"; // ضع كلمة المرور الخاصة بك هنا
+    const input = prompt("يرجى إدخال كلمة المرور:");
+
+    if (input === password) {
+        // إذا نجحت كلمة المرور، نقوم باستدعاء الدوال القديمة كما كانت تماماً
+        if (type === 'all') {
+            fetchAndFilterSales('all'); // هذه هي دالتك القديمة للكل
+        } else if (type === 'year') {
+            showYearSelector(); // هذه هي دالتك القديمة للسنة
+        }
+    } else {
+        alert("لاتحاول سنخبر يوسف صاحب المتجر!");
     }
 }
 </script>
