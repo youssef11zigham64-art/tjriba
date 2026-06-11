@@ -730,10 +730,27 @@
     
     <div id="products-list" class="section">
         <div class="card">
+        
             <h3><i class="fas fa-boxes"></i> إدارة المخزون</h3>
+            <!-- الأزرار -->
+<div style="display: flex; gap: 10px; margin-bottom: 15px;">
+   // <button //onclick=///"syncProductsToSupabase()" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">
+        📤 تحديث المخزون إلى السيرفر
+    </button>
+    <button onclick="loadProductsFromSupabase()" style="background: #6366f1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">
+        📥 جلب المخزون من السيرفر
+    </button>
+</div>
+
+<!-- خانة البحث (الموجودة أصلاً) -->
+<div class="search-flex">
+    ...
+</div>
             <div class="search-flex"><div class="search-container"><i class="fas fa-search"></i><input type="text" id="searchProduct" class="search-input" placeholder="بحث بالاسم..." onkeyup="filterProducts()"></div></div>
             <div style="overflow-x: auto;">
+              
                 <table>
+            
                     <thead><tr><th>الصورة</th><th>المنتج</th><th>المورد</th><th>سعر الشراء</th><th>سعر البيع</th><th>الكمية</th><th class="no-print">الإجراءات</th></tr></thead>
                     <tbody id="productsBody"></tbody>
                 </table>
@@ -3842,6 +3859,84 @@ function checkPassword(type) {
         }
     } else {
         alert("لاتحاول سنخبر يوسف صاحب المتجر!");
+    }
+}
+// تحديث المخزون إلى السيرفر
+async function syncProductsToSupabase() {
+    console.log('🔄 جاري تحديث المنتجات...');
+    
+    if (!products || products.length === 0) {
+        alert('⚠️ لا توجد منتجات');
+        return;
+    }
+    
+    let successCount = 0;
+    let errorList = [];
+    
+    for (let i = 0; i < products.length; i++) {
+        const p = products[i];
+        
+        try {
+            const { error } = await supabaseClient
+                .from('products')
+                .upsert({ 
+                    id: p.id,
+                    name: p.name,
+                    supplier: p.supplier || '',
+                    cost: p.cost,
+                    price: p.price,
+                    quantity: p.quantity,
+                    image: p.image || null
+                });
+            
+            if (error) {
+                errorList.push(p.name);
+                console.error('❌ خطأ في:', p.name, error);
+            } else {
+                successCount++;
+                console.log('✅ تم:', p.name);
+            }
+        } catch(e) {
+            errorList.push(p.name);
+            console.error('❌ استثناء في:', p.name, e);
+        }
+    }
+    
+    if (errorList.length > 0) {
+        alert(`✅ تم تحديث ${successCount} منتج\n❌ فشل: ${errorList.length} منتج`);
+    } else {
+        alert(`✅ تم تحديث ${successCount} منتج بنجاح`);
+    }
+}
+
+// جلب المخزون من السيرفر
+async function loadProductsFromSupabase() {
+    console.log('🔄 جاري جلب المنتجات من السيرفر...');
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('products')
+            .select('*');
+        
+        if (error) {
+            console.error('❌ خطأ:', error);
+            alert('❌ فشل جلب المنتجات: ' + error.message);
+            return;
+        }
+        
+        if (data && data.length > 0) {
+            products = data;
+            localStorage.setItem('wadii_products', JSON.stringify(products));
+            displayProducts();
+            updateProductSelect();
+            alert(`✅ تم جلب ${products.length} منتج من السيرفر`);
+            console.log('✅ تم جلب', products.length, 'منتج');
+        } else {
+            alert('⚠️ لا توجد منتجات في السيرفر');
+        }
+    } catch(e) {
+        console.error('❌ خطأ:', e);
+        alert('❌ خطأ في الاتصال');
     }
 }
 </script>
