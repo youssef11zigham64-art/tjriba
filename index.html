@@ -1094,7 +1094,13 @@
         <button onclick="closeAdminModal()" style="flex:1; background:#eee; border:none; padding:10px; border-radius:5px; cursor:pointer;">إلغاء</button>
     </div>
 </div>
-
+<!-- شاشة التحميل الدائرية الكبيرة -->
+<div id="loadingCircle" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999; justify-content: center; align-items: center; flex-direction: column;">
+    <div style="background: white; padding: 40px; border-radius: 50%; text-align: center; box-shadow: 0 0 30px rgba(0,0,0,0.3);">
+        <i class="fas fa-spinner fa-spin" style="font-size: 80px; color: #6366f1;"></i>
+    </div>
+    <p style="color: white; margin-top: 30px; font-size: 18px;">جاري رفع الفاتورة...</p>
+</div>
 <script>
 // متغير لتتبع آخر وقت تم فيه جلب البيانات من السيرفر
 let lastSyncTime = new Date().toISOString();
@@ -1982,16 +1988,22 @@ function removeFromInvoice(index) {
     currentInvoice.splice(index, 1);
     displayInvoiceItems();
 }
-
 async function saveInvoice() {
-    if (currentInvoice.length === 0) { alert('❌ لا توجد منتجات في الفاتورة'); return; }
+    // ===== الإضافة: إظهار دائرة التحميل =====
+    showLoadingCircle();
+    // =======================================
     
-    // ---- [الخطوة الجديدة: التحقق من وجود إنترنت قبل أي شيء] ----
+    if (currentInvoice.length === 0) { 
+        alert('❌ لا توجد منتجات في الفاتورة'); 
+        hideLoadingCircle(); // إخفاء إذا كان هناك خطأ
+        return; 
+    }
+    
     if (!navigator.onLine) {
         console.warn("تم إلغاء العملية: لا يوجد اتصال بالإنترنت.");
-        // إظهار الشاشة البيضاء التي تشبه المتصفح وتغطية التطبيق بالكامل
         document.getElementById('no-internet-screen').style.display = 'block';
-        return; // التوقف هنا وعدم حفظ الفاتورة نهائياً
+        hideLoadingCircle();
+        return;
     }
 
     let invoiceNumber = document.getElementById('invoiceNumberInput').value.trim();
@@ -2002,7 +2014,6 @@ async function saveInvoice() {
     const total = currentInvoice.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const profit = currentInvoice.reduce((sum, item) => sum + ((item.price - item.cost) * item.quantity), 0);
     
-    // إعداد بيانات الفاتورة
     const sale = {
         id: Date.now(),
         invoiceNumber: invoiceNumber,
@@ -2014,7 +2025,6 @@ async function saveInvoice() {
         profit: profit
     };
 
-    // إرسال المبيعة إلى Supabase
     try {
         const { data, error } = await supabaseClient
             .from('sales')
@@ -2031,18 +2041,16 @@ async function saveInvoice() {
         console.log("✅ تمت المزامنة مع السحاب بنجاح!");
     } catch (err) {
         console.error("❌ خطأ في المزامنة أونلاين:", err);
-        // في حال انقطع الإنترنت فجأة أثناء الإرسال، اظهر الشاشة البيضاء أيضاً وتوقف
         document.getElementById('no-internet-screen').style.display = 'block';
+        hideLoadingCircle();
         return;
     }
 
-    // تنقيص الكمية من المخزن (القديم)
     currentInvoice.forEach(invItem => {
         const product = products.find(p => p.id === invItem.id);
         if (product) { product.quantity -= invItem.quantity; }
     });
 
-    // حفظ البيانات محلياً وتحديث الواجهة (تتم فقط إذا نجح الإنترنت)
     sales.unshift({ ...sale, items: [...currentInvoice] }); 
     saveData();
     
@@ -2057,6 +2065,10 @@ async function saveInvoice() {
     
     document.getElementById('invoiceNumberInput').value = '';
     alert(`✅ تم حفظ الفاتورة بنجاح ونقلها للسحاب\n📄 رقم الفاتورة: ${invoiceNumber}\n👤 الموظف: ${currentUser.name}\n💰 المجموع: ${total.toFixed(2)} د.م`);
+    
+    // ===== الإضافة: إخفاء دائرة التحميل =====
+    hideLoadingCircle();
+    // =======================================
 }
 function displaySales() {
     const tbody = document.getElementById('salesBody');
@@ -2225,6 +2237,15 @@ ${productsDetails || 'لا توجد منتجات مسجلة'}
 📈 أرباح الفاتورة: ${Number(sale.profit || 0).toFixed(2)} د.م.`);
 }
 async function deleteInvoice(id) {
+    // ===== الإضافة الجديدة: منع الموظف من حذف فواتير الآخرين =====
+    const saleToDelete = sales.find(s => s.id == id || s.id == Number(id) || s.invoiceNumber == id);
+    
+    if (currentUser.role !== 'owner' && saleToDelete && saleToDelete.employeeName !== currentUser.name) {
+        alert('⛔ لا يمكنك حذف فاتورة موظف آخر');
+        return;
+    }
+    // =============================================================
+    
     if (!confirm("⚠️ تنبيه هام: هل أنت متأكد تماماً من رغبتك في حذف هذه الفاتورة نهائياً من المتجر ومن السيرفر؟")) return;
 
     try {
@@ -2241,7 +2262,7 @@ async function deleteInvoice(id) {
                 .from('sales')
                 .delete()
                 .eq('id', numericId);
-
+            
             if (error) {
                 console.warn("فشل الحذف بالمعرف الرقمي، جاري المحاولة بنص المعرف أو رقم الفاتورة...", error);
                 
@@ -3938,6 +3959,17 @@ async function loadProductsFromSupabase() {
         console.error('❌ خطأ:', e);
         alert('❌ خطأ في الاتصال');
     }
+}
+// دالة إظهار دائرة التحميل
+function showLoadingCircle() {
+    const circle = document.getElementById('loadingCircle');
+    if (circle) circle.style.display = 'flex';
+}
+
+// دالة إخفاء دائرة التحميل
+function hideLoadingCircle() {
+    const circle = document.getElementById('loadingCircle');
+    if (circle) circle.style.display = 'none';
 }
 </script>
 </body>
