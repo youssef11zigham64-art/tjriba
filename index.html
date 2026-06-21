@@ -947,7 +947,7 @@
             </div>
             <div style="overflow-x: auto;">
                 <table id="salesTable">
-                    <thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>الموظف</th><th>المنتجات</th><th>المجموع</th><th>الربح</th><th class="no-print">الإجراءات</th></tr></thead>
+                    <thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>الموظف</th><th>المنتجات</th><th>المجموع</th><th>...</th><th class="no-print">الإجراءات</th></tr></thead>
                     <tbody id="salesBody"></tbody>
                 </table>
             </div>
@@ -2437,35 +2437,161 @@ function processAdminSearch() {
 }
 
 // عرض النتائج مع العملة المغربية
-function displaySalesResults(sales) {
-    const tbody = document.getElementById('salesTableBody');
-    if (!tbody) return;
+function displaySales() {
+    let tbody = document.getElementById('salesBody');
+    if (!tbody) tbody = document.getElementById('salesTableBody');
+    if (!tbody) {
+        console.error('❌ لم يتم العثور على tbody');
+        return;
+    }
+
+    if (!sales || sales.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:40px;">📭 لا توجد فواتير</td></tr>`;
+        updateInvoiceStats();
+        return;
+    }
+
+    const now = new Date();
+    let filtered = sales;
+
+    if (currentSalesFilter !== 'all') {
+        filtered = [];
+        for (let i = 0; i < sales.length; i++) {
+            const sale = sales[i];
+            const saleDate = parseDateString(sale.date);
+            if (isNaN(saleDate.getTime())) continue;
+
+            let match = false;
+            if (currentSalesFilter === 'today') {
+                match = isSameDay(saleDate, now);
+            } else if (currentSalesFilter === 'week') {
+                const weekAgo = new Date(now);
+                weekAgo.setDate(now.getDate() - 7);
+                match = saleDate >= weekAgo;
+            } else if (currentSalesFilter === 'month') {
+                match = saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
+            } else if (currentSalesFilter === 'year') {
+                match = saleDate.getFullYear() === now.getFullYear();
+            }
+            if (match) filtered.push(sale);
+        }
+    }
+
+    const resultSpan = document.getElementById('searchResultCount');
+    if (resultSpan) resultSpan.textContent = filtered.length;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:40px;">📭 لا توجد فواتير</td></tr>`;
+        updateInvoiceStats();
+        return;
+    }
+
+    let html = '';
+    let totalProfit = 0;
+
+    for (let i = 0; i < filtered.length; i++) {
+        const sale = filtered[i];
+        totalProfit += parseFloat(sale.profit || 0);
+
+        let productsList = '-';
+        if (sale.items) {
+            try {
+                const items = typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items;
+                if (Array.isArray(items) && items.length > 0) {
+                    productsList = items.map(item => item.name).join(', ');
+                }
+            } catch (e) {}
+        }
+
+        // ==================== الأزرار الثلاثة ====================
+        
+        // 1. زر العرض (للجميع)
+        const viewBtn = `<button class="btn btn-primary btn-small" onclick="viewInvoice(${sale.id})">👁️ عرض</button>`;
+        
+        // 2. زر الطباعة (للجميع)
+        const printBtn = `<button class="btn btn-secondary btn-small" onclick="printInvoice(${sale.id})">🖨️ طباعة</button>`;
+        
+        // 3. زر الحذف (حسب الصلاحية)
+        let deleteBtn = '';
+        if (currentUser.role === 'owner') {
+            // المدير: يحذف الكل
+            deleteBtn = `<button class="btn btn-danger btn-small" onclick="deleteSale(${sale.id})">🗑️ حذف</button>`;
+        } else if (sale.employeeName === currentUser.name || sale.employeeId === currentUser.id) {
+            // الموظف: يحذف فواتيره فقط
+            deleteBtn = `<button class="btn btn-danger btn-small" onclick="deleteSale(${sale.id})">🗑️ حذف</button>`;
+        } else {
+            // الموظف: لا يمكنه حذف فواتير الآخرين
+            deleteBtn = `<span style="color: #999; font-size: 12px;">🚫 غير مسموح</span>`;
+        }
+
+        html += `
+            <tr>
+                <td>${sale.date || '-'}</td>
+                <td><span class="invoice-number">${sale.invoiceNumber || '-'}</span></td>
+                <td><span class="employee-badge">${sale.employeeName || '-'}</span></td>
+                <td>${productsList}</td>
+                <td><strong>${(sale.total || 0).toFixed(2)}</strong> د.م</td>
+                <td>${(sale.profit || 0).toFixed(2)} د.م</td>
+                <td class="no-print">
+                    ${viewBtn} ${printBtn}
+                </td>
+                <td class="no-print">${deleteBtn}</td>
+            </tr>
+        `;
+    }
+
+    // صف الإجمالي
+    html += `
+        <tr style="background: #f0f0f0; font-weight: bold;">
+            <td colspan="5" style="text-align: left; padding: 10px;">📊  yousse</td>
+            <td colspan="3" style="text-align: center; padding: 10px; color: #10b981; font-size: 16px;">
+                ${totalProfit.toFixed(2)} د.م
+            </td>
+        </tr>
+    `;
+
+    tbody.innerHTML = html;
+    updateInvoiceStats();
+}
+// تعريف الدالة كدالة عامة
+window.deleteSale = async function(id) {
+    console.log('🗑️ محاولة حذف الفاتورة:', id);
     
-    if (sales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;">❌ لا توجد مبيعات</td></tr>';
+    const numericId = Number(id);
+    const sale = sales.find(s => s.id === numericId);
+    
+    if (!sale) {
+        alert('❌ الفاتورة غير موجودة');
         return;
     }
     
-    let html = '';
-    let total = 0;
+    if (currentUser.role !== 'owner' && sale.employeeName !== currentUser.name) {
+        alert('⛔ لا يمكنك حذف فاتورة موظف آخر');
+        return;
+    }
     
-    sales.forEach(sale => {
-        let amount = parseFloat(sale.total || sale.amount || 0);
-        total += amount;
-        html += `<tr>
-                     <td style="padding:8px;">${sale.employeeName}</td>
-                     <td style="padding:8px;">${amount.toFixed(2)} ${currency}</td>
-                     <td style="padding:8px;">${new Date(sale.date).toLocaleDateString('ar-MA')}</td>
-                  </tr>`;
-    });
+    if (!confirm('⚠️ هل أنت متأكد من الحذف؟')) return;
     
-    html += `<tr style="background:#ff9800;font-weight:bold;">
-                <td style="padding:8px;">الإجمالي</td>
-                <td colspan="2" style="padding:8px;">${total.toFixed(2)} ${currency}</td>
-              </tr>`;
-    tbody.innerHTML = html;
-}
-
+    try {
+        const { error } = await supabaseClient
+            .from('sales')
+            .delete()
+            .eq('id', numericId);
+        
+        if (error) throw error;
+        
+        sales = sales.filter(s => s.id !== numericId);
+        localStorage.setItem('wadii_sales', JSON.stringify(sales));
+        displaySales();
+        updateInvoiceStats();
+        
+        alert('✅ تم حذف الفاتورة');
+        
+    } catch (error) {
+        console.error('❌ خطأ:', error);
+        alert('❌ فشل الحذف');
+    }
+};
 // عرض أرباح الموظفين (بالدرهم)
 function showMonthlyEmployeeProfits() {
     if (!isAdminLoggedIn) {
@@ -3970,6 +4096,130 @@ function showLoadingCircle() {
 function hideLoadingCircle() {
     const circle = document.getElementById('loadingCircle');
     if (circle) circle.style.display = 'none';
+}
+async function deleteSale(id) {
+    // البحث عن الفاتورة باستخدام invoiceNumber
+    const sale = sales.find(s => s.invoiceNumber === String(id) || String(s.id) === String(id));
+    
+    if (!sale) {
+        alert('❌ الفاتورة غير موجودة');
+        return;
+    }
+    
+    if (currentUser.role !== 'owner' && sale.employeeName !== currentUser.name) {
+        alert('⛔ لا يمكنك حذف فاتورة موظف آخر');
+        return;
+    }
+    
+    if (!confirm('⚠️ هل أنت متأكد من الحذف؟')) return;
+    
+    try {
+        // الحذف باستخدام invoiceNumber
+        const { error } = await supabaseClient
+            .from('sales')
+            .delete()
+            .eq('invoiceNumber', sale.invoiceNumber);
+        
+        if (error) throw error;
+        
+        sales = sales.filter(s => s.invoiceNumber !== sale.invoiceNumber);
+        localStorage.setItem('wadii_sales', JSON.stringify(sales));
+        displaySales();
+        updateInvoiceStats();
+        
+        alert('✅ تم حذف الفاتورة');
+        
+    } catch (error) {
+        console.error('❌ خطأ:', error);
+        alert('❌ فشل الحذف: ' + error.message);
+    }
+}
+// ===== عرض تفاصيل الفاتورة =====
+function viewInvoice(id) {
+    const sale = sales.find(s => s.id === id || s.id === Number(id));
+    if (!sale) {
+        alert('❌ الفاتورة غير موجودة');
+        return;
+    }
+    
+    let itemsList = '';
+    if (sale.items) {
+        try {
+            const items = typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items;
+            if (Array.isArray(items)) {
+                itemsList = items.map(item => 
+                    `- ${item.name} × ${item.quantity} = ${(item.price * item.quantity).toFixed(2)} د.م`
+                ).join('\n');
+            }
+        } catch (e) {}
+    }
+    
+    alert(`📄 تفاصيل الفاتورة
+━━━━━━━━━━━━━━━━━━
+📌 رقم الفاتورة: ${sale.invoiceNumber || '-'}
+👤 الموظف: ${sale.employeeName || '-'}
+📅 التاريخ: ${sale.date || '-'}
+💰 المجموع: ${(sale.total || 0).toFixed(2)} د.م
+📈 الربح: ${(sale.profit || 0).toFixed(2)} د.م
+━━━━━━━━━━━━━━━━━━
+🛒 المنتجات:
+${itemsList || 'لا توجد منتجات'}
+━━━━━━━━━━━━━━━━━━`);
+}
+
+// ===== طباعة الفاتورة =====
+function printInvoice(id) {
+    const sale = sales.find(s => s.id === id || s.id === Number(id));
+    if (!sale) {
+        alert('❌ الفاتورة غير موجودة');
+        return;
+    }
+    
+    // فتح نافذة طباعة
+    const printWindow = window.open('', '_blank', 'width=600,height=400');
+    
+    let itemsList = '';
+    if (sale.items) {
+        try {
+            const items = typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items;
+            if (Array.isArray(items)) {
+                itemsList = items.map(item => 
+                    `<tr><td>${item.name}</td><td>${item.quantity}</td><td>${(item.price * item.quantity).toFixed(2)} د.م</td></tr>`
+                ).join('');
+            }
+        } catch (e) {}
+    }
+    
+    printWindow.document.write(`
+        <html dir="rtl">
+        <head><title>فاتورة ${sale.invoiceNumber}</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h2 { color: #6366f1; text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+            th { background: #6366f1; color: white; }
+            .total { font-weight: bold; font-size: 18px; color: #10b981; }
+        </style>
+        </head>
+        <body>
+            <h2>🧾 فاتورة رقم ${sale.invoiceNumber}</h2>
+            <p><strong>👤 الموظف:</strong> ${sale.employeeName}</p>
+            <p><strong>📅 التاريخ:</strong> ${sale.date}</p>
+            <table>
+                <thead><tr><th>المنتج</th><th>الكمية</th><th>المجموع</th></tr></thead>
+                <tbody>${itemsList || '<tr><td colspan="3">لا توجد منتجات</td></tr>'}</tbody>
+            </table>
+            <p class="total">💰 المجموع الكلي: ${(sale.total || 0).toFixed(2)} د.م</p>
+            <p class="total">📈 الربح: ${(sale.profit || 0).toFixed(2)} د.م</p>
+            <p style="text-align: center; margin-top: 30px; color: #999;">تم الطباعة من متجر وديع</p>
+            <script>
+                window.onload = function() { window.print(); }
+            <\/script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
 }
 </script>
 </body>
