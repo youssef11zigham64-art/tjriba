@@ -734,12 +734,14 @@
             <h3><i class="fas fa-boxes"></i> إدارة المخزون</h3>
             <!-- الأزرار -->
 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-   // <button //onclick=///"syncProductsToSupabase()" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">
+    <button //onclick=///"syncProductsToSupabase()" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">
         📤 تحديث المخزون إلى السيرفر
     </button>
     <button onclick="loadProductsFromSupabase()" style="background: #6366f1; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;">
         📥 جلب المخزون من السيرفر
-    </button>
+    </button><button onclick="saveAllProductChanges()" style="background: #8b5cf6; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; margin-bottom: 10px;">
+    💾 حفظ جميع التغييرات
+</button>
 </div>
 
 <!-- خانة البحث (الموجودة أصلاً) -->
@@ -1848,22 +1850,168 @@ function getFilteredSales() {
 function displayProducts() {
     const tbody = document.getElementById('productsBody');
     if (!tbody) return;
+    
+    let filteredProducts = [...products];
+    const searchInput = document.getElementById('searchProduct');
+    if (searchInput && searchInput.value.trim()) {
+        const term = searchInput.value.trim().toLowerCase();
+        filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(term));
+    }
+    
+    if (filteredProducts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;">📭 لا توجد منتجات</td></tr>';
+        return;
+    }
+    
     tbody.innerHTML = '';
-    products.forEach(product => {
+    
+    filteredProducts.forEach(product => {
         const hasImage = product.image && product.image !== '';
-        const imageHtml = hasImage ? `<img src="${product.image}" class="product-thumbnail" onclick="event.stopPropagation(); openImageModal('${product.image}', '${product.name}')" title="اضغط لتكبير الصورة">` : `<div class="no-image-icon" onclick="event.stopPropagation(); alert('لا توجد صورة لهذا المنتج')"><i class="fas fa-image"></i></div>`;
-        tbody.innerHTML += `<tr>
-            <td class="product-image-cell">${imageHtml}<button class="btn btn-small btn-warning" style="margin-top: 5px; font-size: 0.7rem; padding: 2px 5px;" onclick="openEditImageModal(${product.id})" title="تعديل الصورة"><i class="fas fa-edit"></i> تعديل</button></td>
-            <td><strong>${product.name}</strong></td>
-            <td>${product.supplier || '-'}</td>
-            <td>${product.cost.toFixed(2)} د.م</td>
-            <td>${product.price.toFixed(2)} د.م</td>
-            <td>${product.quantity}</td>
-            <td class="no-print"><button class="btn btn-small btn-primary" onclick="updateQuantity(${product.id}, 1)">+1</button> <button class="btn btn-small btn-danger" onclick="updateQuantity(${product.id}, -1)">-1</button> <button class="btn btn-small btn-secondary" onclick="editProduct(${product.id})"><i class="fas fa-edit"></i></button> <button class="btn btn-small btn-danger" onclick="deleteProduct(${product.id})"><i class="fas fa-trash"></i></button></td>
-        </tr>`;
+        const imageHtml = hasImage ? 
+            `<img src="${product.image}" class="product-thumbnail" onclick="event.stopPropagation(); openImageModal('${product.image}', '${product.name}')" title="اضغط لتكبير الصورة">` : 
+            `<div class="no-image-icon" onclick="event.stopPropagation(); alert('لا توجد صورة لهذا المنتج')"><i class="fas fa-image"></i></div>`;
+        
+        tbody.innerHTML += `
+            <tr>
+                <td class="product-image-cell">
+                    ${imageHtml}
+                    <button class="btn btn-small btn-warning" style="margin-top: 5px; font-size: 0.7rem; padding: 2px 5px;" onclick="openEditImageModal(${product.id})" title="تعديل الصورة">
+                        <i class="fas fa-edit"></i> تعديل
+                    </button>
+                </td>
+                <td><strong>${product.name}</strong></td>
+                <td>${product.supplier || '-'}</td>
+                <td>
+                    <input type="number" id="cost_${product.id}" value="${product.cost || 0}" 
+                           style="width:80px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center;"
+                           onchange="updateProductField(${product.id}, 'cost', this.value)"
+                           onfocus="this.select()">
+                </td>
+                <td>
+                    <input type="number" id="price_${product.id}" value="${product.price || 0}" 
+                           style="width:80px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center;color:#10b981;font-weight:bold;"
+                           onchange="updateProductField(${product.id}, 'price', this.value)"
+                           onfocus="this.select()">
+                </td>
+                <td>
+                    <input type="number" id="quantity_${product.id}" value="${product.quantity || 0}" 
+                           style="width:80px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center;"
+                           onchange="updateProductField(${product.id}, 'quantity', this.value)"
+                           onfocus="this.select()">
+                </td>
+                <td class="no-print">
+                    <button class="btn btn-small btn-success" onclick="saveProductChanges(${product.id})" style="background:#10b981;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;margin-bottom:3px;">
+                        💾 حفظ
+                    </button>
+                    <button class="btn btn-small btn-secondary" onclick="editProduct(${product.id})" style="margin-bottom:3px;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-small btn-danger" onclick="deleteProduct(${product.id})" style="margin-bottom:3px;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
     });
 }
+// ============================================================
+// ===== تحديث حقل المنتج فوراً =====
+// ============================================================
+function updateProductField(productId, field, value) {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    const newValue = parseFloat(value);
+    if (isNaN(newValue)) return;
+    
+    product[field] = newValue;
+    
+    // تغيير لون الخلفية للإشارة إلى التعديل
+    const input = document.getElementById(`${field}_${productId}`);
+    if (input) {
+        input.style.backgroundColor = '#fef3c7';
+        input.style.borderColor = '#f59e0b';
+    }
+    
+    // تحديث localStorage فوراً
+    localStorage.setItem('wadii_products', JSON.stringify(products));
+    
+    console.log(`✏️ تم تعديل ${field} للمنتج ${product.name} إلى ${newValue}`);
+}
 
+// ============================================================
+// ===== حفظ التغييرات لمنتج واحد =====
+// ============================================================
+async function saveProductChanges(productId) {
+    const product = products.find(p => p.id === productId);
+    if (!product) {
+        alert('❌ المنتج غير موجود');
+        return;
+    }
+    
+    // إزالة تأثير التعديل
+    ['cost', 'price', 'quantity'].forEach(field => {
+        const input = document.getElementById(`${field}_${productId}`);
+        if (input) {
+            input.style.backgroundColor = '';
+            input.style.borderColor = '';
+        }
+    });
+    
+    try {
+        const { error } = await supabaseClient
+            .from('products')
+            .upsert({
+                id: product.id,
+                name: product.name,
+                supplier: product.supplier || '',
+                cost: product.cost,
+                price: product.price,
+                quantity: product.quantity,
+                image: product.image || null,
+                updated_at: new Date().toISOString()
+            });
+        
+        if (error) throw error;
+        
+        localStorage.setItem('wadii_products', JSON.stringify(products));
+        console.log(`✅ تم حفظ التغييرات للمنتج ${product.name}`);
+        alert(`✅ تم حفظ التغييرات للمنتج ${product.name}`);
+        
+    } catch (error) {
+        console.error('❌ خطأ:', error);
+        alert('❌ فشل الحفظ في السيرفر: ' + error.message);
+    }
+}
+
+// ============================================================
+// ===== حفظ جميع التغييرات دفعة واحدة =====
+// ============================================================
+async function saveAllProductChanges() {
+    if (!confirm('⚠️ هل أنت متأكد من حفظ جميع التغييرات؟')) return;
+    
+    let count = 0;
+    for (const product of products) {
+        const { error } = await supabaseClient
+            .from('products')
+            .upsert({
+                id: product.id,
+                name: product.name,
+                supplier: product.supplier || '',
+                cost: product.cost,
+                price: product.price,
+                quantity: product.quantity,
+                image: product.image || null,
+                updated_at: new Date().toISOString()
+            });
+        
+        if (!error) count++;
+    }
+    
+    localStorage.setItem('wadii_products', JSON.stringify(products));
+    alert(`✅ تم حفظ ${count} منتج في السيرفر`);
+    displayProducts();
+}
 function updateQuantity(productId, change) {
     const product = products.find(p => p.id === productId);
     if (product) {
