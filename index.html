@@ -4150,98 +4150,168 @@ function onYearChanged() {
     if (selectedYear) {
         fetchAndFilterSales('specific-year', selectedYear);
     }
-}
-// ============================================================
-// ===== الدالة الأم: تجلب جميع الفواتير من السيرفر =====
+}// ============================================================
+// ===== جلب الفواتير حسب الفلتر مباشرة من Supabase =====
 // ============================================================
 async function fetchAndFilterSales(period, extraValue = null) {
-    console.log(`🔄 جاري جلب جميع الفواتير من السيرفر للفلتر: ${period}`);
+    console.log(`🔄 جاري جلب الفواتير للفلتر: ${period}`);
     
-    // 1. الاتصال بالسيرفر لجلب جميع الفواتير
+    if (!navigator.onLine) {
+        console.warn("🔌 لا يوجد إنترنت، استخدام البيانات المخزنة");
+        const saved = localStorage.getItem('wadii_sales');
+        sales = saved ? JSON.parse(saved) : [];
+        applyFilter(period, extraValue);
+        return;
+    }
+    
+    let query = supabaseClient.from('sales').select('*');
+    const now = new Date();
+    let filteredSales = [];
+    
     try {
-        if (navigator.onLine) {
+        if (period === 'all') {
+            // جلب جميع الفواتير (مع range)
             let allSales = [];
-            let page = 0;
-            const pageSize = 1000;
+            let offset = 0;
+            const limit = 1000;
             let hasMore = true;
             
             while (hasMore) {
-                const from = page * pageSize;
-                const to = from + pageSize - 1;
-                
                 const { data, error } = await supabaseClient
                     .from('sales')
                     .select('*')
-                    .order('created_at', { ascending: false })
-                    .range(from, to);
+                    .order('id', { ascending: false })
+                    .range(offset, offset + limit - 1);
                 
-                if (error) {
-                    console.error('❌ خطأ في جلب الفواتير:', error);
-                    break;
-                }
+                if (error) throw error;
                 
                 if (data && data.length > 0) {
                     allSales = allSales.concat(data);
-                    console.log(`📦 تم جلب ${allSales.length} فاتورة حتى الآن`);
-                    page++;
+                    offset += limit;
                 }
                 
-                if (!data || data.length < pageSize) {
+                if (!data || data.length < limit) {
                     hasMore = false;
                 }
             }
             
-            // تحديث مصفوفة المبيعات العامة بالبيانات الطازجة
             sales = allSales;
-            localStorage.setItem('wadii_sales', JSON.stringify(sales));
-            console.log(`✅ تم تحديث الكاش بـ ${sales.length} فاتورة من السيرفر.`);
+            filteredSales = [...sales];
             
-        } else {
-            console.warn("🔌 لا يوجد إنترنت، سيتم الفرز بناءً على البيانات المخزنة.");
+        } else if (period === 'today') {
+            // ===== جلب فواتير اليوم فقط =====
+            const todayStr = now.toLocaleDateString('ar-MA');
+            console.log(`📅 جلب فواتير اليوم: ${todayStr}`);
+            
+            // استخدام filter مباشرة في Supabase
+            const { data, error } = await supabaseClient
+                .from('sales')
+                .select('*')
+                .eq('date', todayStr)
+                .order('id', { ascending: false });
+            
+            if (error) throw error;
+            
+            sales = data || [];
+            filteredSales = [...sales];
+            console.log(`📊 تم جلب ${filteredSales.length} فاتورة لليوم`);
+            
+        } else if (period === 'specific-month') {
+            // ===== جلب فواتير شهر محدد =====
+            const month = parseInt(extraValue, 10);
+            console.log(`📅 جلب فواتير الشهر: ${month}`);
+            
+            // جلب جميع الفواتير ثم تصفيتها (لأن Supabase لا يدعم filter على جزء من التاريخ)
+            let allSales = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMore = true;
+            
+            while (hasMore) {
+                const { data, error } = await supabaseClient
+                    .from('sales')
+                    .select('*')
+                    .order('id', { ascending: false })
+                    .range(offset, offset + limit - 1);
+                
+                if (error) throw error;
+                
+                if (data && data.length > 0) {
+                    allSales = allSales.concat(data);
+                    offset += limit;
+                }
+                
+                if (!data || data.length < limit) {
+                    hasMore = false;
+                }
+            }
+            
+            // تصفية حسب الشهر
+            filteredSales = allSales.filter(sale => {
+                const parts = sale.date.split(/[-/]/);
+                const saleMonth = parseInt(parts[1], 10);
+                return saleMonth === month;
+            });
+            
+            sales = filteredSales;
+            
+        } else if (period === 'specific-year') {
+            // ===== جلب فواتير سنة محددة =====
+            const year = extraValue;
+            console.log(`📅 جلب فواتير السنة: ${year}`);
+            
+            let allSales = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMore = true;
+            
+            while (hasMore) {
+                const { data, error } = await supabaseClient
+                    .from('sales')
+                    .select('*')
+                    .order('id', { ascending: false })
+                    .range(offset, offset + limit - 1);
+                
+                if (error) throw error;
+                
+                if (data && data.length > 0) {
+                    allSales = allSales.concat(data);
+                    offset += limit;
+                }
+                
+                if (!data || data.length < limit) {
+                    hasMore = false;
+                }
+            }
+            
+            // تصفية حسب السنة
+            filteredSales = allSales.filter(sale => {
+                const parts = sale.date.split(/[-/]/);
+                const saleYear = parts.find(p => p.length === 4);
+                return saleYear === year;
+            });
+            
+            sales = filteredSales;
         }
-    } catch (err) {
-        console.error("❌ خطأ أثناء تحديث البيانات من السيرفر:", err);
-    }
-
-    // 2. تصفية البيانات بناءً على الفلتر المطلوب
-    const now = new Date();
-    let filteredSales = [];
-
-    if (period === 'all') {
+        
+        // تحديث localStorage
+        localStorage.setItem('wadii_sales', JSON.stringify(sales));
+        
+    } catch (error) {
+        console.error('❌ خطأ في جلب الفواتير:', error);
+        // الرجوع إلى localStorage
+        const saved = localStorage.getItem('wadii_sales');
+        sales = saved ? JSON.parse(saved) : [];
         filteredSales = [...sales];
-        document.getElementById('monthSelectSelector').style.display = 'none';
-        document.getElementById('yearSelectSelector').style.display = 'none';
-    } 
-    else if (period === 'today') {
-        const currentDayStr = now.toLocaleDateString('ar-MA');
-        filteredSales = sales.filter(sale => sale.date === currentDayStr);
-        document.getElementById('monthSelectSelector').style.display = 'none';
-        document.getElementById('yearSelectSelector').style.display = 'none';
-    } 
-    else if (period === 'specific-month') {
-        filteredSales = sales.filter(sale => {
-            const parts = sale.date.split(/[-/]/);
-            const saleMonth = parseInt(parts[1], 10);
-            return saleMonth === parseInt(extraValue, 10);
-        });
-    } 
-    else if (period === 'specific-year') {
-        filteredSales = sales.filter(sale => {
-            const parts = sale.date.split(/[-/]/);
-            const saleYear = parts.find(p => p.length === 4);
-            return saleYear === extraValue;
-        });
     }
-
-    console.log(`📊 عدد الفواتير بعد الفلتر: ${filteredSales.length}`);
     
-    // عرض الفواتير المفلترة
+    console.log(`📊 عدد الفواتير المعروضة: ${filteredSales.length}`);
+    
+    // عرض الفواتير
     if (typeof displaySales === 'function') {
-        // إذا كانت displaySales تقبل مصفوفة، مررها لها
         displaySales(filteredSales);
     }
     
-    // تحديث الإحصائيات
     if (typeof updateInvoiceStats === 'function') {
         updateInvoiceStats();
     }
