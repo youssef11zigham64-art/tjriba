@@ -1515,6 +1515,7 @@ const users = [
     { id: 2, name: "ilyass", email: "ilyass", password: "ch1979", role: "employee", avatar: "ي" },
     { id: 3, name: "chaimaa", email: "c", password: "chaimaa", role: "employee", avatar: "س" },
     { id: 4, name: "mariam", email: "m", password: "mariam", role: "employee", avatar: "م" }
+
 ];
 
 // =============== المتغيرات العامة ===============
@@ -4150,83 +4151,102 @@ function onYearChanged() {
         fetchAndFilterSales('specific-year', selectedYear);
     }
 }
-
-// الدالة الأم: تجلب من السيرفر أولاً لتحديث الحاسوب ثم تفرز البيانات
+// ============================================================
+// ===== الدالة الأم: تجلب جميع الفواتير من السيرفر =====
+// ============================================================
 async function fetchAndFilterSales(period, extraValue = null) {
-    console.log(`🔄 جاري جلب البيانات من السيرفر لتحديث الفلتر الحالي: ${period}`);
-  
-        alert("   لفد تم جلب جميع الفواتير اليوم بنجاح !");
-  
-    // 1. الاتصال بالسيرفر لجلب الفواتير الحديثة (حتى لو اختفت من كاش الحاسوب)
+    console.log(`🔄 جاري جلب جميع الفواتير من السيرفر للفلتر: ${period}`);
+    
+    // 1. الاتصال بالسيرفر لجلب جميع الفواتير
     try {
         if (navigator.onLine) {
-            const { data, error } = await supabaseClient
-                .from('sales')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (!error && data) {
-                // تحديث مصفوفة المبيعات العامة في الحاسوب بالبيانات الطازجة من السيرفر
-                sales = data;
-                // حفظها في كاش المتصفح لكي لا تضيع
-                localStorage.setItem('savedSales', JSON.stringify(sales));
-                localStorage.setItem('wadii_sales', JSON.stringify(sales));
-                console.log("✅ تم تحديث كاش الحاسوب بنجاح من السيرفر.");
+            let allSales = [];
+            let page = 0;
+            const pageSize = 1000;
+            let hasMore = true;
+            
+            while (hasMore) {
+                const from = page * pageSize;
+                const to = from + pageSize - 1;
+                
+                const { data, error } = await supabaseClient
+                    .from('sales')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .range(from, to);
+                
+                if (error) {
+                    console.error('❌ خطأ في جلب الفواتير:', error);
+                    break;
+                }
+                
+                if (data && data.length > 0) {
+                    allSales = allSales.concat(data);
+                    console.log(`📦 تم جلب ${allSales.length} فاتورة حتى الآن`);
+                    page++;
+                }
+                
+                if (!data || data.length < pageSize) {
+                    hasMore = false;
+                }
             }
+            
+            // تحديث مصفوفة المبيعات العامة بالبيانات الطازجة
+            sales = allSales;
+            localStorage.setItem('wadii_sales', JSON.stringify(sales));
+            console.log(`✅ تم تحديث الكاش بـ ${sales.length} فاتورة من السيرفر.`);
+            
         } else {
-            console.warn("🔌 لا يوجد إنترنت، سيتم الفرز بناءً على البيانات المخزنة في الحاسوب فقط.");
+            console.warn("🔌 لا يوجد إنترنت، سيتم الفرز بناءً على البيانات المخزنة.");
         }
     } catch (err) {
-        console.error("خطأ أثناء تحديث البيانات من السيرفر:", err);
+        console.error("❌ خطأ أثناء تحديث البيانات من السيرفر:", err);
     }
 
-    // 2. البدء في تصفية البيانات المحدثة بناءً على طلبك
+    // 2. تصفية البيانات بناءً على الفلتر المطلوب
     const now = new Date();
     let filteredSales = [];
 
     if (period === 'all') {
         filteredSales = [...sales];
-        // إخفاء القوائم المنسدلة
         document.getElementById('monthSelectSelector').style.display = 'none';
         document.getElementById('yearSelectSelector').style.display = 'none';
     } 
     else if (period === 'today') {
-        const currentDayStr = now.toLocaleDateString('ar-MA'); // توافق مع طريقة حفظك للتاريخ
+        const currentDayStr = now.toLocaleDateString('ar-MA');
         filteredSales = sales.filter(sale => sale.date === currentDayStr);
-        
-        // إخفاء القوائم المنسدلة
         document.getElementById('monthSelectSelector').style.display = 'none';
         document.getElementById('yearSelectSelector').style.display = 'none';
     } 
     else if (period === 'specific-month') {
-        // فحص الشهر المختار (extraValue يمثل رقم الشهر من 1 إلى 12)
         filteredSales = sales.filter(sale => {
-            // نقوم بتفكيك التاريخ المسجل بالفاتورة (مثال: 2026/05/28 أو 28/05/2026)
             const parts = sale.date.split(/[-/]/);
-            // البحث عن جزء الشهر (غالباً يكون العنصر الثاني في المصفوفة)
             const saleMonth = parseInt(parts[1], 10);
             return saleMonth === parseInt(extraValue, 10);
         });
     } 
     else if (period === 'specific-year') {
-        // فحص السنة المختارة (extraValue يمثل السنة مثل 2026)
         filteredSales = sales.filter(sale => {
             const parts = sale.date.split(/[-/]/);
-            // البحث عن جزء السنة (يكون إما أول عنصر أو آخر عنصر حسب صيغتك)
             const saleYear = parts.find(p => p.length === 4);
             return saleYear === extraValue;
         });
     }
 
-    // 3. عرض الفواتير المفلترة في الجدول وتحديث الإحصائيات
-    console.log(`📊 عدد الفواتير المعروضة بعد التحديث والفرز: ${filteredSales.length}`);
+    console.log(`📊 عدد الفواتير بعد الفلتر: ${filteredSales.length}`);
     
-    // استدعاء دالة عرض الجدول المتوفرة في كودك ومتابعة النتيجة
+    // عرض الفواتير المفلترة
     if (typeof displaySales === 'function') {
-        // لتمرير الفواتير المفلترة للدالة دون تخريب المصفوفة الأصلية
-        // سنقوم بتحديث واجهة العرض بناءً على filteredSales
-        // (ملاحظة: إذا كانت دالة displaySales تقرأ من متغير sales العام مباشرة، أخبرني لنعدلها لتستقبل مصفوفة مخصصة)
+        // إذا كانت displaySales تقبل مصفوفة، مررها لها
+        displaySales(filteredSales);
     }
+    
+    // تحديث الإحصائيات
+    if (typeof updateInvoiceStats === 'function') {
+        updateInvoiceStats();
+    }
+    
+    return filteredSales;
 }
 function checkAdminLock() {
     // كلمة السر الخاصة بك
