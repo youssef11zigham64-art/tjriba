@@ -1509,14 +1509,177 @@ window.deleteDebt = function(id) {
 
 console.log("✅ نظام الديون جاهز");
 
-// =============== بيانات المستخدمين (محفوظة كما هي) ===============
+// ============================================================
+// ===== بيانات المستخدمين (محدثة) =====
+// ============================================================
 const users = [
-    { id: 1, name: "youssef", email: "youssef", password: "22098", role: "owner", avatar: "أ" },
-    { id: 2, name: "majda", email: "majda", password: "g1979", role: "employee", avatar: "ي" },
-    { id: 3, name: "chaimaa", email: "c", password: "chaimaa", role: "employee", avatar: "س" },
-    { id: 4, name: "mariam", email: "m", password: "mariam", role: "employee", avatar: "م" }
-
+    // ===== المدير =====
+    { 
+        id: 1, 
+        name: "youssef", 
+        email: "youssef", 
+        password: "22098", 
+        role: "owner", 
+        avatar: "ي" 
+    },
+    
+    // ===== الموظفون =====
+    { 
+        id: 2, 
+        name: "majda", 
+        email: "majda", 
+        password: "gla1979", 
+        role: "employee", 
+        avatar: "م" 
+    },
+    { 
+        id: 3, 
+        name: "chaimaa", 
+        email: "chaimaa", 
+        password: "chaimaa", 
+        role: "employee", 
+        avatar: "ش" 
+    },
+    { 
+        id: 4, 
+        name: "mariam", 
+        email: "mariam", 
+        password: "mariam", 
+        role: "employee", 
+        avatar: "م" 
+    },
+    { 
+        id: 5, 
+        name: "salma", 
+        email: "Salma.aitothman@gmail.com", 
+        password: "99qq99", 
+        role: "employee", 
+        avatar: "أ" 
+    },
+    { 
+        id: 6, 
+        name: "fatima", 
+        email: "fatima", 
+        password: "fatima123", 
+        role: "employee", 
+        avatar: "ف" 
+    },
+    { 
+        id: 7, 
+        name: "khalid", 
+        email: "khalid", 
+        password: "khalid123", 
+        role: "employee", 
+        avatar: "خ" 
+    },
+    { 
+        id: 8, 
+        name: "samira", 
+        email: "samira", 
+        password: "samira123", 
+        role: "employee", 
+        avatar: "س" 
+    },
+    { 
+        id: 9, 
+        name: "rachid", 
+        email: "rachid", 
+        password: "rachid123", 
+        role: "employee", 
+        avatar: "ر" 
+    },
+    { 
+        id: 10, 
+        name: "nadia", 
+        email: "nadia", 
+        password: "nadia123", 
+        role: "employee", 
+        avatar: "ن" 
+    },
+    { 
+        id: 11, 
+        name: "hassan", 
+        email: "hassan", 
+        password: "hassan123", 
+        role: "employee", 
+        avatar: "ح" 
+    }
 ];
+
+// ============================================================
+// ===== دوال تسجيل الدخول =====
+// ============================================================
+
+
+function loginWithEmail() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    if (!email || !password) {
+        alert('⚠️ الرجاء إدخال البريد الإلكتروني وكلمة المرور');
+        return;
+    }
+
+    const user = users.find(u => u.email === email && u.password === password);
+
+    if (user) {
+        currentUser = user;
+        showMainApp();
+    } else {
+        alert('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة');
+    }
+}
+
+function loginWithGoogle() {
+    const email = prompt("📧 أدخل بريدك الإلكتروني (Gmail):", "example@gmail.com");
+    if (email) {
+        const user = users.find(u => u.email === email);
+        if (user) {
+            currentUser = user;
+            showMainApp();
+        } else {
+            alert('❌ لا يوجد حساب مرتبط بهذا البريد');
+        }
+    }
+}
+
+function showMainApp() {
+    document.getElementById('loginContainer').style.display = 'none';
+    
+    document.getElementById('sidebarUserAvatar').textContent = currentUser.avatar;
+    document.getElementById('sidebarUserName').textContent = currentUser.name;
+    document.getElementById('sidebarUserRoleText').textContent = currentUser.role === 'owner' ? 'مدير' : 'موظف';
+    
+    const ownerElements = document.querySelectorAll('.owner-only');
+    if (currentUser.role === 'owner') {
+        ownerElements.forEach(el => el.style.display = 'flex');
+    } else {
+        ownerElements.forEach(el => el.style.display = 'none');
+    }
+    
+    loadData();
+    displayProducts();
+    updateProductSelect();
+    displaySales();
+    updateInvoiceStats();
+    
+    if (currentUser.role === 'owner') {
+        updateDashboard();
+    }
+}
+
+function logout() {
+    currentUser = null;
+    window.location.reload();
+}
+
+function isAdmin() {
+    return currentUser && currentUser.role === 'owner';
+}
+
+function getCurrentUserName() {
+    return currentUser ? currentUser.name : 'زائر';
+}
 
 // =============== المتغيرات العامة ===============
 let currentUser = null;
